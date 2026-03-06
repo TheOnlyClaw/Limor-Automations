@@ -10,11 +10,15 @@
     "db:migrate": "tsx src/db/cli.ts"
   },
   "dependencies": {
+    "@sinclair/typebox": "^0.34.28",
     "better-sqlite3": "^11.10.0",
     "fastify": "^5.0.0",
-    "fastify-plugin": "^5.1.0"
+    "fastify-plugin": "^5.1.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/uuid": "^10.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.3"
   }

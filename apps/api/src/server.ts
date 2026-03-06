@@ -19,6 +19,10 @@ app.get('/api/v1/ping', async () => {
   return { pong: true }
 })
 
+await app.register((await import("./routes/instagramTokens.js")).instagramTokensRoutes)
+await app.register((await import("./routes/instagramPosts.js")).instagramPostsRoutes)
+await app.register((await import("./routes/instagramRefresh.js")).instagramRefreshRoutes)
+
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '0.0.0.0'
 

@@ -61,6 +61,8 @@ export async function migrate({
   dbPath: string;
   migrationsDir: string;
 }) {
+  // Ensure the directory exists so better-sqlite3 can create the file.
+  await fs.mkdir(path.dirname(dbPath), { recursive: true });
   const db = new Database(dbPath);
 
   // Good default pragmas for an app DB
