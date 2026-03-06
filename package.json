@@ -1,0 +1,21 @@
+{
+  "name": "limor-automations",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @limor/api & npm run dev -w web",
+    "dev:api": "npm -w apps/api run dev",
+    "dev:web": "npm -w apps/web run dev",
+    "build": "npm -w apps/api run build && npm -w apps/web run build",
+    "lint": "npm -w apps/api run lint --if-present && npm -w apps/web run lint --if-present",
+    "typecheck": "npm -w apps/api run typecheck --if-present && npm -w apps/web run typecheck --if-present",
+    "spec": "openspec-kit"
+  },
+  "devDependencies": {
+    "openspec-kit": "^0.2.0"
+  }
+}
