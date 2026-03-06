@@ -13,8 +13,9 @@
     "build": "npm -w apps/api run build && npm -w apps/web run build",
     "lint": "npm -w apps/api run lint --if-present && npm -w apps/web run lint --if-present",
     "typecheck": "npm -w apps/api run typecheck --if-present && npm -w apps/web run typecheck --if-present",
-    "spec": "openspec-kit",
-    "db:migrate": "npm -w apps/api run db:migrate"
+    "spec": "opsx-kit",
+    "db:migrate": "npm -w apps/api run db:migrate",
+    "worker:events": "npm -w apps/api run worker:events"
   },
   "devDependencies": {
     "openspec-kit": "^0.2.0"

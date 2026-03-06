@@ -7,7 +7,8 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "db:migrate": "tsx src/db/cli.ts"
+    "db:migrate": "tsx src/db/cli.ts",
+    "worker:events": "tsx src/worker/cli.ts"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.28",
