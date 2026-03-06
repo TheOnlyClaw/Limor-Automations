@@ -9,6 +9,37 @@ function sha256Hex(input: string): string {
   return crypto.createHash('sha256').update(input).digest('hex')
 }
 
+function timingSafeEqualHex(a: string, b: string): boolean {
+  try {
+    const ba = Buffer.from(a, 'hex')
+    const bb = Buffer.from(b, 'hex')
+    if (ba.length !== bb.length) return false
+    return crypto.timingSafeEqual(ba, bb)
+  } catch {
+    return false
+  }
+}
+
+function verifyMetaSignature({
+  secret,
+  rawBody,
+  signatureHeader,
+}: {
+  secret: string
+  rawBody: string
+  signatureHeader: string | undefined
+}): boolean {
+  // Meta sends: X-Hub-Signature-256: sha256=<hex>
+  if (!signatureHeader) return false
+  const prefix = 'sha256='
+  if (!signatureHeader.startsWith(prefix)) return false
+  const theirHex = signatureHeader.slice(prefix.length).trim()
+  if (!theirHex) return false
+
+  const ourHex = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex')
+  return timingSafeEqualHex(ourHex, theirHex)
+}
+
 function computeDedupeKey(payload: any): string {
   try {
     const object = payload?.object ?? 'unknown'
@@ -64,6 +95,26 @@ export const instagramWebhooksRoutes: FastifyPluginAsync = async (app) => {
   })
 
   app.post('/api/v1/webhooks/instagram', async (req, reply) => {
+    const metaSecret = process.env.META_APP_SECRET
+    if (!metaSecret) {
+      req.log.error('META_APP_SECRET is not set')
+      return reply.code(500).send({ error: 'Server not configured' })
+    }
+
+    // Raw body is required for signature validation.
+    // Fastify provides it when `rawBody: true` is enabled.
+    const rawBody = (req as any).rawBody
+    if (typeof rawBody !== 'string') {
+      req.log.error('rawBody not available; enable Fastify rawBody')
+      return reply.code(500).send({ error: 'Server not configured' })
+    }
+
+    const sigHeader = (req.headers['x-hub-signature-256'] as string | undefined) ?? undefined
+    const okSig = verifyMetaSignature({ secret: metaSecret, rawBody, signatureHeader: sigHeader })
+    if (!okSig) {
+      return reply.code(401).send({ error: 'Invalid signature' })
+    }
+
     const payload = req.body
     const now = new Date().toISOString()
 
