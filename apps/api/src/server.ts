@@ -23,6 +23,7 @@ await app.register((await import("./routes/instagramTokens.js")).instagramTokens
 await app.register((await import("./routes/instagramPosts.js")).instagramPostsRoutes)
 await app.register((await import("./routes/instagramRefresh.js")).instagramRefreshRoutes)
 await app.register((await import("./routes/automations.js")).automationsRoutes)
+await app.register((await import("./routes/automationExecutions.js")).automationExecutionsRoutes)
 await app.register((await import("./routes/instagramWebhooks.js")).instagramWebhooksRoutes)
 
 const port = Number(process.env.PORT ?? 3000)

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { executeWebhookEvent } from './executeEvent.js'
 import { openDb } from '../db/index.js'
 
 type WebhookEventRow = {
@@ -95,8 +96,8 @@ export async function runWebhookWorker() {
     for (const ev of claimed) {
       try {
         // 0008 will actually parse & execute. For 0007 we just validate JSON is parseable.
-        JSON.parse(ev.payload_json)
-
+        const res = executeWebhookEvent(db, { eventId: ev.id, payloadJson: ev.payload_json })
+        
         db.prepare(
           `UPDATE instagram_webhook_events
            SET status='processed', processed_at=?, locked_at=NULL, locked_by=NULL, last_error=NULL
