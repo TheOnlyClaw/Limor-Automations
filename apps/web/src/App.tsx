@@ -1,53 +1,57 @@
+import { useEffect, useState } from 'react'
+import { AuthGate } from './auth/AuthGate'
+import { SettingsPage } from './settings/SettingsPage'
+import { AppShell } from './shell/AppShell'
+import { DashboardPage } from './dashboard/DashboardPage'
+
+function normalizePathname(p: string) {
+  if (p === '/login') return '/login'
+  if (p === '/' || p === '/dashboard') return '/dashboard'
+  if (p === '/settings') return '/settings'
+  return '/dashboard'
+}
+
 export default function App() {
+  const [path, setPath] = useState(() => normalizePathname(window.location.pathname))
+
+  function navigate(href: string, opts?: { replace?: boolean }) {
+    if (href === window.location.pathname && !opts?.replace) return
+    if (opts?.replace) window.history.replaceState(null, '', href)
+    else window.history.pushState(null, '', href)
+    setPath(href)
+  }
+
+  useEffect(() => {
+    function onPop() {
+      setPath(normalizePathname(window.location.pathname))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  useEffect(() => {
+    const normalized = normalizePathname(window.location.pathname)
+    if (normalized !== window.location.pathname) {
+      window.history.replaceState(null, '', normalized)
+    }
+  }, [])
+
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-zinc-800/80 bg-zinc-950/60 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4">
-          <div className="font-semibold tracking-tight">Limor Automations</div>
-          <nav className="flex items-center gap-2 text-sm text-zinc-300">
-            <a className="rounded-md px-3 py-1.5 hover:bg-zinc-900 hover:text-zinc-100" href="#">
-              Dashboard
-            </a>
-            <a className="rounded-md px-3 py-1.5 hover:bg-zinc-900 hover:text-zinc-100" href="#">
-              Runs
-            </a>
-            <a className="rounded-md px-3 py-1.5 hover:bg-zinc-900 hover:text-zinc-100" href="#">
-              Settings
-            </a>
-          </nav>
-        </div>
-      </header>
+    <AuthGate>
+      {({ user, signOut }) => {
+        const userEmail = user.email ?? null
+        const activePath = path === '/login' ? '/dashboard' : path
 
-      <main className="mx-auto max-w-5xl px-4 py-10">
-        <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
-          <h1 className="text-2xl font-semibold tracking-tight">Modern, minimal stack</h1>
-          <p className="mt-2 text-zinc-300">
-            Fastify backend + React/Tailwind frontend. Specs live in <code className="rounded bg-zinc-900 px-1.5 py-0.5">/openspec</code>.
-          </p>
+        if (activePath === '/settings') {
+          return <SettingsPage onNavigate={navigate} userEmail={userEmail} onSignOut={signOut} />
+        }
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-100">
-              Create automation
-            </button>
-            <button className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900">
-              View specs
-            </button>
-          </div>
-
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            {[
-              { title: 'Fastify API', desc: 'Typed TS server with simple routes.' },
-              { title: 'React UI', desc: 'Vite + Tailwind + clean layout baseline.' },
-              { title: 'OpenSpec', desc: 'Specs-first workflow for changes.' },
-            ].map((c) => (
-              <div key={c.title} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <div className="text-sm font-semibold">{c.title}</div>
-                <div className="mt-1 text-sm text-zinc-300">{c.desc}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
+        return (
+          <AppShell active="dashboard" onNavigate={navigate} userEmail={userEmail} onSignOut={signOut}>
+            <DashboardPage onGoToSettings={() => navigate('/settings')} />
+          </AppShell>
+        )
+      }}
+    </AuthGate>
   )
 }

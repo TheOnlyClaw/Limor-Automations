@@ -12,10 +12,12 @@ declare module 'fastify' {
 
 const plugin: FastifyPluginAsync = async (app) => {
   const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), 'data', 'app.sqlite');
-  const migrationsDir = path.join(process.cwd(), 'migrations');
-
-  // Apply migrations on boot (idempotent)
-  await migrate({ dbPath, migrationsDir });
+  const migrateOnBoot = (process.env.DB_MIGRATE_ON_BOOT ?? '1') !== '0';
+  if (migrateOnBoot) {
+    const migrationsDir = process.env.MIGRATIONS_DIR ?? path.join(process.cwd(), 'migrations');
+    // Apply migrations on boot (idempotent)
+    await migrate({ dbPath, migrationsDir });
+  }
 
   const db = openDb(dbPath);
   app.decorate('db', db);

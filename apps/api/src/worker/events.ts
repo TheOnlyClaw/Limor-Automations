@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { executeWebhookEvent } from './executeEvent.js'
+import { processQueuedExecutionsForEvent } from './executions.js'
 import { openDb } from '../db/index.js'
+import { getInstagramTokenAutoRefreshConfig, refreshInstagramTokensDue } from '../lib/instagramTokenRefresh.js'
 
 type WebhookEventRow = {
   id: string
@@ -49,6 +51,9 @@ export async function runWebhookWorker() {
   const batchSize = parseIntEnv('WEBHOOK_BATCH_SIZE', 20)
   const lockTtlMs = parseIntEnv('WEBHOOK_LOCK_TTL_MS', 5 * 60 * 1000)
 
+  const tokenRefreshCfg = getInstagramTokenAutoRefreshConfig()
+  let nextTokenRefreshAt = Date.now() + 15_000
+
   // eslint-disable-next-line no-console
   console.log(JSON.stringify({ msg: 'webhook-worker-start', workerId, pollMs, batchSize, lockTtlMs }))
 
@@ -59,6 +64,17 @@ export async function runWebhookWorker() {
     const now = Date.now()
     const lockExpiredBefore = new Date(now - lockTtlMs).toISOString()
     const nowIso = new Date(now).toISOString()
+
+    if (tokenRefreshCfg.enabled && now >= nextTokenRefreshAt) {
+      try {
+        await refreshInstagramTokensDue(db, { logger: console })
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error({ msg: 'ig-token-auto-refresh-failed', err: e })
+      } finally {
+        nextTokenRefreshAt = Date.now() + tokenRefreshCfg.pollMs
+      }
+    }
 
     // Claim a batch. We do it in a transaction to reduce race windows.
     const claimed = db.transaction(() => {
@@ -92,12 +108,14 @@ export async function runWebhookWorker() {
         .prepare(`SELECT * FROM instagram_webhook_events WHERE id IN (${placeholders})`)
         .all(...ids) as WebhookEventRow[]
     })()
-
+  console.log({claimed})
     for (const ev of claimed) {
       try {
         // 0008 will actually parse & execute. For 0007 we just validate JSON is parseable.
         const res = executeWebhookEvent(db, { eventId: ev.id, payloadJson: ev.payload_json })
-        
+
+        const execRes = await processQueuedExecutionsForEvent(db, { eventId: ev.id })
+         
         db.prepare(
           `UPDATE instagram_webhook_events
            SET status='processed', processed_at=?, locked_at=NULL, locked_by=NULL, last_error=NULL
@@ -105,7 +123,14 @@ export async function runWebhookWorker() {
         ).run(isoNow(), ev.id, workerId)
 
         // eslint-disable-next-line no-console
-        console.log(JSON.stringify({ msg: 'webhook-event-processed', id: ev.id, dedupe_key: ev.dedupe_key }))
+        console.log(
+          JSON.stringify({
+            msg: 'webhook-event-processed',
+            id: ev.id,
+            dedupe_key: ev.dedupe_key,
+            executions: execRes,
+          }),
+        )
       } catch (err) {
         const attempts = (ev.attempts ?? 0) + 1
         const backoffMs = computeBackoffMs(attempts)

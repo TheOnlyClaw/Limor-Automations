@@ -1,24 +1,7 @@
 import { Type } from '@sinclair/typebox'
 import type { FastifyPluginAsync } from 'fastify'
 import { sendError } from '../lib/reply.js'
-import { httpGetJson } from '../lib/http.js'
-
-// Graph long-lived token extension
-// https://developers.facebook.com/docs/facebook-login/access-tokens/refreshing
-
-type ExtendTokenResponse = {
-  access_token: string
-  token_type?: string
-  expires_in?: number
-}
-
-function nowIso() {
-  return new Date().toISOString()
-}
-
-function plusSecondsIso(seconds: number) {
-  return new Date(Date.now() + seconds * 1000).toISOString()
-}
+import { refreshInstagramToken } from '../lib/instagramTokenRefresh.js'
 
 export const instagramRefreshRoutes: FastifyPluginAsync = async (app) => {
   app.post(
@@ -37,61 +20,18 @@ export const instagramRefreshRoutes: FastifyPluginAsync = async (app) => {
     },
     async (req, reply) => {
       const { id } = req.params as { id: string }
-      const token = app.db.prepare('SELECT * FROM instagram_tokens WHERE id = ?').get(id) as any
-      if (!token) return sendError(reply, 404, 'Not found')
-
-      const appId = process.env.FB_APP_ID
-      const appSecret = process.env.FB_APP_SECRET
-      if (!appId || !appSecret) {
-        return sendError(reply, 500, 'Missing FB_APP_ID/FB_APP_SECRET')
-      }
-
-      const version = process.env.FB_GRAPH_VERSION ?? 'v21.0'
-      const url = new URL(`https://graph.facebook.com/${version}/oauth/access_token`)
-      url.searchParams.set('grant_type', 'fb_exchange_token')
-      url.searchParams.set('client_id', appId)
-      url.searchParams.set('client_secret', appSecret)
-      url.searchParams.set('fb_exchange_token', token.access_token)
-
       try {
-        app.db.prepare('UPDATE instagram_tokens SET refresh_status = ?, refresh_error = ?, updated_at = ? WHERE id = ?').run(
-          'refreshing',
-          null,
-          nowIso(),
-          id
-        )
+        const exists = app.db.prepare('SELECT 1 as one FROM instagram_tokens WHERE id = ?').get(id) as
+          | { one: number }
+          | undefined
+        if (!exists) return sendError(reply, 404, 'Not found')
 
-        const data = await httpGetJson<ExtendTokenResponse>(url.toString())
-        const expiresAt = typeof data.expires_in === 'number' ? plusSecondsIso(data.expires_in) : null
-
-        app.db
-          .prepare(
-            `UPDATE instagram_tokens SET
-              access_token = ?,
-              expires_at = ?,
-              last_refreshed_at = ?,
-              refresh_status = ?,
-              refresh_error = ?,
-              updated_at = ?
-            WHERE id = ?`
-          )
-          .run(
-            data.access_token,
-            expiresAt,
-            nowIso(),
-            'ok',
-            null,
-            nowIso(),
-            id
-          )
-
-        return { ok: true, id, expiresAt }
-      } catch (e: any) {
-        req.log.error({ err: e, data: e?.data }, 'token refresh failed')
-        app.db
-          .prepare('UPDATE instagram_tokens SET refresh_status = ?, refresh_error = ?, updated_at = ? WHERE id = ?')
-          .run('error', String(e?.message ?? 'error'), nowIso(), id)
-        return sendError(reply, 502, 'Facebook upstream error')
+        const res = await refreshInstagramToken(app.db, { id, logger: req.log })
+        if (!res.ok) return sendError(reply, 409, 'Refresh already in progress')
+        return { ok: true, id, expiresAt: res.expiresAt }
+      } catch (e: unknown) {
+        req.log.error({ err: e }, 'token refresh failed')
+        return sendError(reply, 502, 'Instagram upstream error')
       }
     }
   )

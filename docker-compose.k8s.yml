@@ -1,0 +1,99 @@
+services:
+  # One-shot migration container. In Kubernetes you typically run this as an initContainer
+  # (or a Job) that shares the same /data volume.
+  migrate:
+    image: theonlyartz/limor-api:latest
+    pull_policy: always
+    working_dir: /app/apps/api
+    command: ["node", "dist/db/cli.js"]
+    environment:
+      NODE_ENV: production
+      DB_PATH: /data/app.sqlite
+    volumes:
+      - /mnt/MultiPurpose/limor/db:/data
+    restart: "no"
+
+  api:
+    image: theonlyartz/limor-api:latest
+    pull_policy: always
+    depends_on:
+      - migrate
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DB_PATH: /data/app.sqlite
+      DB_MIGRATE_ON_BOOT: 0
+      # Token auto-refresh defaults to enabled; override if needed:
+      # IG_TOKEN_AUTO_REFRESH: 1
+    volumes:
+      - /mnt/MultiPurpose/limor/db:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    # Expose API only on your LAN interface by binding to a specific host IP.
+    # Set API_BIND_IP to your NAS LAN IP (e.g. 192.168.1.50). For local-only, use 127.0.0.1.
+    ports:
+      - "${API_BIND_IP:-127.0.0.1}:3000:3000"
+
+  webhooks:
+    image: theonlyartz/limor-webhooks:latest
+    pull_policy: always
+    depends_on:
+      - migrate
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      WEBHOOKS_PORT: 3001
+      DB_PATH: /data/app.sqlite
+      DB_MIGRATE_ON_BOOT: 0
+      IG_WEBHOOK_VERIFY_TOKEN: ${IG_WEBHOOK_VERIFY_TOKEN}
+      META_APP_SECRET: ${META_APP_SECRET}
+      WEBHOOK_DEBUG_SIGNATURE: ${WEBHOOK_DEBUG_SIGNATURE:-0}
+    volumes:
+      - /mnt/MultiPurpose/limor/db:/data
+    restart: unless-stopped
+    healthcheck:
+      test:
+        ["CMD", "node", "-e", "fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+    # Expose webhooks on a dedicated host port for cloudflared to target.
+    # If cloudflared runs on the same host, you can keep this on 127.0.0.1.
+    ports:
+      - "${WEBHOOKS_BIND_IP:-127.0.0.1}:${WEBHOOKS_HOST_PORT:-3002}:3001"
+
+  worker:
+    image: theonlyartz/limor-worker:latest
+    pull_policy: always
+    depends_on:
+      - migrate
+    environment:
+      NODE_ENV: production
+      DB_PATH: /data/app.sqlite
+      WEBHOOK_POLL_MS: ${WEBHOOK_POLL_MS:-1000}
+      WEBHOOK_BATCH_SIZE: ${WEBHOOK_BATCH_SIZE:-20}
+      WEBHOOK_LOCK_TTL_MS: ${WEBHOOK_LOCK_TTL_MS:-300000}
+    volumes:
+      - /mnt/MultiPurpose/limor/db:/data
+    restart: unless-stopped
+
+  # Public entrypoint (nginx + static web UI + reverse proxy to api/webhooks).
+  # In Kubernetes, expose this via Ingress/NodePort/LoadBalancer.
+  web:
+    image: theonlyartz/limor-web:latest
+    pull_policy: always
+    depends_on:
+      - api
+      - webhooks
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+## Note: This compose uses a host-path bind mount for SQLite persistence.
+## On TrueNAS SCALE Custom Apps, map a dataset to this same path.

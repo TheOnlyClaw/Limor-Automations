@@ -8,7 +8,8 @@
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "db:migrate": "tsx src/db/cli.ts",
-    "worker:events": "tsx src/worker/cli.ts"
+    "worker:events": "tsx src/worker/cli.ts",
+    "tokens:refresh-due": "tsx src/worker/tokensRefreshDue.ts"
   },
   "dependencies": {
     "@sinclair/typebox": "^0.34.28",

@@ -1,7 +1,7 @@
 import Fastify from 'fastify'
 import path from 'node:path'
 import dbPlugin from './plugins/db.js'
-import rawBodyPlugin from './plugins/rawBody.js'
+import { getInstagramTokenAutoRefreshConfig, refreshInstagramTokensDue } from './lib/instagramTokenRefresh.js'
 
 const app = Fastify({ logger: true })
 
@@ -9,9 +9,6 @@ const app = Fastify({ logger: true })
 // migrations path is relative to apps/api (process.cwd when running workspace script)
 process.env.DB_PATH ??= path.join(process.cwd(), 'data', 'app.sqlite')
 await app.register(dbPlugin)
-
-// Needed for Meta webhook signature validation
-await app.register(rawBodyPlugin)
 
 app.get('/health', async () => {
   // quick sanity check that DB is reachable
@@ -28,8 +25,30 @@ await app.register((await import('./routes/instagramPosts.js')).instagramPostsRo
 await app.register((await import('./routes/instagramRefresh.js')).instagramRefreshRoutes)
 await app.register((await import('./routes/automations.js')).automationsRoutes)
 await app.register((await import('./routes/automationExecutions.js')).automationExecutionsRoutes)
-await app.register((await import('./routes/instagramWebhooks.js')).instagramWebhooksRoutes)
 await app.register((await import('./routes/instagramBootstrap.js')).instagramBootstrapRoutes)
+
+const tokenRefreshCfg = getInstagramTokenAutoRefreshConfig()
+if (tokenRefreshCfg.enabled) {
+  let inFlight = false
+  const tick = async () => {
+    if (inFlight) return
+    inFlight = true
+    try {
+      await refreshInstagramTokensDue(app.db, { logger: app.log })
+    } catch (e) {
+      app.log.error({ err: e }, 'ig token auto-refresh tick failed')
+    } finally {
+      inFlight = false
+    }
+  }
+
+  const timeout = setTimeout(() => void tick(), 10_000)
+  const interval = setInterval(() => void tick(), tokenRefreshCfg.pollMs)
+  app.addHook('onClose', async () => {
+    clearTimeout(timeout)
+    clearInterval(interval)
+  })
+}
 
 const port = Number(process.env.PORT ?? 3000)
 const host = process.env.HOST ?? '0.0.0.0'

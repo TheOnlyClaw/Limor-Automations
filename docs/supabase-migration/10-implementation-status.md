@@ -118,6 +118,21 @@ Hosted deployment status:
 - `list-instagram-posts` is active in the hosted project at version `1`
 - a follow-up redeploy attempt for the latest local hardening patch hit a Supabase internal deploy error, so hosted `list-instagram-posts` is slightly behind the repo
 
+### 9. Webhook runtime migration (repo only)
+
+Done in repo:
+
+- added `supabase/functions/instagram-webhook`
+- added `supabase/functions/retry-automation-executions`
+- added `supabase/functions/refresh-instagram-tokens`
+- added shared helpers for webhook parsing and delivery (`supabase/functions/_shared/webhook.ts`, `supabase/functions/_shared/instagramActions.ts`)
+- extended Graph helpers for POST requests in `supabase/functions/_shared/instagramGraph.ts`
+
+Hosted deployment status:
+
+- deployed to the hosted project on 2026-03-07 (`instagram-webhook`, `retry-automation-executions`, `refresh-instagram-tokens`)
+- all three functions set `verify_jwt = false` in repo to allow public webhook delivery
+
 ## Validation completed
 
 Completed during implementation:
@@ -146,8 +161,10 @@ Tracking note:
 
 Still open:
 
-- migrate webhook ingestion and execution runtime to Supabase Edge Functions
-- retire old Fastify and worker paths once the Supabase path is fully validated
+- deploy and validate the new webhook runtime in the hosted project (instagram-webhook, retry-automation-executions, refresh-instagram-tokens)
+- complete end-to-end webhook validation against live comment events
+- cut over remaining SQLite data and retire Fastify/SQLite plumbing once the Supabase runtime is validated (DB plugins, worker loops, webhook route, `DB_PATH`)
+- redeploy the latest `refresh-instagram-connection` and `list-instagram-posts` patches when Supabase deploys stabilize, then finish manual validation
 
 Next planned slice:
 
@@ -155,7 +172,8 @@ Next planned slice:
 
 ## Notes
 
-- the current codebase is in a mixed state on purpose: auth and connection management are on the Supabase path, while dashboard automations and post loading still depend on the older Fastify path
-- the current codebase is still mixed on purpose, but the browser-facing dashboard data path is now on Supabase: auth, connections, posts, and automation CRUD all use Supabase-backed flows, while webhook ingestion and execution still depend on the older Fastify/worker runtime
+- the current codebase is mixed on purpose: auth, connections, posts, and automation CRUD are on Supabase, while webhook ingestion and execution still depend on the older Fastify/worker runtime
+- the webhook Edge Functions are implemented in the repo but still need hosted deployment + live validation
+- Instagram token CRUD has been migrated to Supabase connections and is no longer on the Fastify path
 - temporary risk was explicitly accepted on 2026-03-07 so Slice B could proceed before the remaining connection validation and hosted refresh redeploy were complete
 - hosted security advisors are much cleaner now; the remaining item seen during setup was Supabase Auth leaked-password protection being disabled in project settings

@@ -97,8 +97,8 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
           igPostId: Type.String({ minLength: 1 }),
           name: Type.Optional(Type.String({ minLength: 1, maxLength: 120 })),
           enabled: Type.Optional(Type.Boolean()),
-          rules: Type.Array(RuleInput, { minItems: 1 }),
-          actions: Type.Array(ActionInput, { minItems: 1 }),
+          rules: Type.Optional(Type.Array(RuleInput)),
+          actions: Type.Optional(Type.Array(ActionInput)),
         }),
         response: {
           201: AutomationSchema,
@@ -111,16 +111,24 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
       const token = app.db.prepare('SELECT id FROM instagram_tokens WHERE id = ?').get(body.tokenId)
       if (!token) return sendError(reply, 404, 'tokenId not found')
 
+      const enabledBool = body.enabled === undefined ? true : Boolean(body.enabled)
+      const rules = Array.isArray(body.rules) ? body.rules : []
+      const actions = Array.isArray(body.actions) ? body.actions : []
+
+      if (enabledBool && rules.length === 0) {
+        return sendError(reply, 400, 'At least one rule is required when enabled')
+      }
+
       // Validate regex patterns
       try {
-        for (const r of body.rules) compileRegex(r.pattern, r.flags)
+        for (const r of rules) compileRegex(r.pattern, r.flags)
       } catch (e: any) {
         return sendError(reply, 400, `Invalid regex: ${e?.message ?? 'invalid'}`)
       }
 
       const id = randomUUID()
       const ts = nowIso()
-      const enabled = body.enabled === undefined ? 1 : body.enabled ? 1 : 0
+      const enabled = enabledBool ? 1 : 0
 
       const tx = app.db.transaction(() => {
         app.db
@@ -136,7 +144,7 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
             id, automation_id, pattern, flags, created_at
           ) VALUES (?, ?, ?, ?, ?)`
         )
-        for (const r of body.rules) {
+        for (const r of rules) {
           insRule.run(randomUUID(), id, r.pattern, r.flags ?? null, ts)
         }
 
@@ -145,7 +153,7 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
             id, automation_id, type, template, created_at
           ) VALUES (?, ?, ?, ?, ?)`
         )
-        for (const a of body.actions) {
+        for (const a of actions) {
           insAction.run(randomUUID(), id, a.type, a.template, ts)
         }
       })
@@ -212,8 +220,8 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
         body: Type.Object({
           name: Type.Optional(Type.Union([Type.String({ minLength: 1, maxLength: 120 }), Type.Null()])),
           enabled: Type.Optional(Type.Boolean()),
-          rules: Type.Optional(Type.Array(RuleInput, { minItems: 1 })),
-          actions: Type.Optional(Type.Array(ActionInput, { minItems: 1 })),
+          rules: Type.Optional(Type.Array(RuleInput)),
+          actions: Type.Optional(Type.Array(ActionInput)),
         }),
         response: { 200: AutomationSchema },
       },
@@ -225,9 +233,16 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
       const existing = app.db.prepare('SELECT * FROM post_automations WHERE id = ?').get(id) as any
       if (!existing) return sendError(reply, 404, 'Not found')
 
-      if (body.rules) {
+      const nextEnabledBool = body.enabled !== undefined ? Boolean(body.enabled) : Boolean(existing.enabled)
+      const rules = body.rules !== undefined ? (Array.isArray(body.rules) ? body.rules : []) : undefined
+
+      if (nextEnabledBool && rules !== undefined && rules.length === 0) {
+        return sendError(reply, 400, 'At least one rule is required when enabled')
+      }
+
+      if (rules !== undefined) {
         try {
-          for (const r of body.rules) compileRegex(r.pattern, r.flags)
+          for (const r of rules) compileRegex(r.pattern, r.flags)
         } catch (e: any) {
           return sendError(reply, 400, `Invalid regex: ${e?.message ?? 'invalid'}`)
         }
@@ -237,26 +252,27 @@ export const automationsRoutes: FastifyPluginAsync = async (app) => {
 
       const tx = app.db.transaction(() => {
         const nextName = body.name !== undefined ? body.name : existing.name
-        const nextEnabled = body.enabled !== undefined ? (body.enabled ? 1 : 0) : existing.enabled
+        const nextEnabled = nextEnabledBool ? 1 : 0
 
         app.db
           .prepare('UPDATE post_automations SET name = ?, enabled = ?, updated_at = ? WHERE id = ?')
           .run(nextName ?? null, nextEnabled, ts, id)
 
-        if (body.rules) {
+        if (rules !== undefined) {
           app.db.prepare('DELETE FROM post_automation_rules WHERE automation_id = ?').run(id)
           const insRule = app.db.prepare(
             `INSERT INTO post_automation_rules (id, automation_id, pattern, flags, created_at) VALUES (?, ?, ?, ?, ?)`
           )
-          for (const r of body.rules) insRule.run(randomUUID(), id, r.pattern, r.flags ?? null, ts)
+          for (const r of rules) insRule.run(randomUUID(), id, r.pattern, r.flags ?? null, ts)
         }
 
-        if (body.actions) {
+        if (body.actions !== undefined) {
+          const actions = Array.isArray(body.actions) ? body.actions : []
           app.db.prepare('DELETE FROM post_automation_actions WHERE automation_id = ?').run(id)
           const insAction = app.db.prepare(
             `INSERT INTO post_automation_actions (id, automation_id, type, template, created_at) VALUES (?, ?, ?, ?, ?)`
           )
-          for (const a of body.actions) insAction.run(randomUUID(), id, a.type, a.template, ts)
+          for (const a of actions) insAction.run(randomUUID(), id, a.type, a.template, ts)
         }
       })
 

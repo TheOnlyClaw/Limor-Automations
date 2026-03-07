@@ -27,13 +27,15 @@ function verifyMetaSignature({
 }: {
   secret: string
   rawBody: string
-  signatureHeader: string | undefined
+  signatureHeader: string | string[] | undefined
 }): boolean {
   // Meta sends: X-Hub-Signature-256: sha256=<hex>
-  if (!signatureHeader) return false
+  const header = Array.isArray(signatureHeader) ? signatureHeader[0] : signatureHeader
+  if (!header) return false
   const prefix = 'sha256='
-  if (!signatureHeader.startsWith(prefix)) return false
-  const theirHex = signatureHeader.slice(prefix.length).trim()
+  const trimmed = header.trim()
+  if (!trimmed.startsWith(prefix)) return false
+  const theirHex = trimmed.slice(prefix.length).trim()
   if (!theirHex) return false
 
   const ourHex = crypto.createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex')
@@ -109,9 +111,25 @@ export const instagramWebhooksRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(500).send({ error: 'Server not configured' })
     }
 
-    const sigHeader = (req.headers['x-hub-signature-256'] as string | undefined) ?? undefined
+    const sigHeader = (req.headers['x-hub-signature-256'] as string | string[] | undefined) ?? undefined
     const okSig = verifyMetaSignature({ secret: metaSecret, rawBody, signatureHeader: sigHeader })
     if (!okSig) {
+      const debug = process.env.WEBHOOK_DEBUG_SIGNATURE === '1'
+      if (debug) {
+        const header = Array.isArray(sigHeader) ? sigHeader[0] : sigHeader
+        const their = (header ?? '').trim().startsWith('sha256=') ? (header ?? '').trim().slice('sha256='.length).trim() : null
+        const our = crypto.createHmac('sha256', metaSecret).update(rawBody, 'utf8').digest('hex')
+        req.log.warn(
+          {
+            msg: 'invalid-meta-signature',
+            bodyLen: rawBody.length,
+            contentType: req.headers['content-type'],
+            theirPrefix: their ? their.slice(0, 16) : null,
+            ourPrefix: our.slice(0, 16),
+          },
+          'meta webhook signature mismatch',
+        )
+      }
       return reply.code(401).send({ error: 'Invalid signature' })
     }
 

@@ -26,6 +26,9 @@ type ActionRow = {
 
 type ParsedCommentEvent = {
   igPostId: string
+  commentId: string
+  fromId: string | null
+  selfIgScopedId: string | null
   commentText: string
 }
 
@@ -39,12 +42,22 @@ export function extractCommentEvent(payloadJson: string): ParsedCommentEvent | n
   const value = change?.value
 
   const igPostId = value?.media_id ?? value?.media?.id
+  const commentId = value?.id ?? value?.comment_id
+  const fromId = value?.from?.id
+  const selfIgScopedId = value?.self_ig_scoped_id ?? value?.from?.self_ig_scoped_id
   const commentText = value?.text ?? value?.message
 
   if (typeof igPostId !== 'string' || typeof commentText !== 'string') return null
+  if (typeof commentId !== 'string') return null
   if (!igPostId.trim()) return null
 
-  return { igPostId, commentText }
+  return {
+    igPostId,
+    commentId,
+    fromId: typeof fromId === 'string' && fromId.trim() ? fromId : null,
+    selfIgScopedId: typeof selfIgScopedId === 'string' && selfIgScopedId.trim() ? selfIgScopedId : null,
+    commentText,
+  }
 }
 
 function loadAutomationsForPost(db: Database.Database, igPostId: string): AutomationRow[] {

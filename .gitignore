@@ -19,3 +19,4 @@ apps/web/dist
 *.sqlite
 *.sqlite-journal
 apps/api/data/
+.opencode

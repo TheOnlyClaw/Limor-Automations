@@ -15,10 +15,12 @@ Completed or mostly completed so far:
 - `6. Add shared Edge Function helpers` (current subset needed for connections)
 - `7. Implement connection Edge Functions`
 - `8. Implement posts Edge Function`
+- `9. Implement webhook runtime (repo only)`
 
 Still pending:
 
 - later runtime, webhook, and Fastify retirement steps
+- hosted deployment + validation for the webhook runtime
 
 See `docs/supabase-migration/10-implementation-status.md` for the detailed status log.
 

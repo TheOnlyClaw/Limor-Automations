@@ -7,15 +7,19 @@
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev -w @limor/api & npm run dev -w web",
+    "dev": "npm -w apps/api run dev & npm -w apps/web run dev & npm -w apps/webhooks run dev",
     "dev:api": "npm -w apps/api run dev",
     "dev:web": "npm -w apps/web run dev",
-    "build": "npm -w apps/api run build && npm -w apps/web run build",
-    "lint": "npm -w apps/api run lint --if-present && npm -w apps/web run lint --if-present",
-    "typecheck": "npm -w apps/api run typecheck --if-present && npm -w apps/web run typecheck --if-present",
+    "dev:webhooks": "npm -w apps/webhooks run dev",
+    "tunnel:api": "bash scripts/ngrok-api.sh",
+    "tunnel:webhooks": "bash scripts/ngrok-webhooks.sh",
+    "build": "npm -w apps/api run build && npm -w apps/webhooks run build && npm -w apps/web run build",
+    "lint": "npm -w apps/api run lint --if-present && npm -w apps/webhooks run lint --if-present && npm -w apps/web run lint --if-present",
+    "typecheck": "npm -w apps/api run typecheck --if-present && npm -w apps/webhooks run typecheck --if-present && npm -w apps/web run typecheck --if-present",
     "spec": "opsx-kit",
     "db:migrate": "npm -w apps/api run db:migrate",
-    "worker:events": "npm -w apps/api run worker:events"
+    "worker:events": "npm -w apps/api run worker:events",
+    "tokens:refresh-due": "npm -w apps/api run tokens:refresh-due"
   },
   "devDependencies": {
     "openspec-kit": "^0.2.0"

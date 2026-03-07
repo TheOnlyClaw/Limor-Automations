@@ -52,6 +52,13 @@ Connection-management functions expect these secrets:
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `WEB_ORIGIN`
 
+Webhook/runtime functions expect these secrets:
+
+- `META_APP_SECRET`
+- `IG_WEBHOOK_VERIFY_TOKEN`
+- `FB_GRAPH_VERSION` (optional, defaults to `v19.0`)
+- `INTERNAL_FUNCTION_SECRET` (optional bearer token for scheduled functions)
+
 ## Notes
 
 - `supabase/config.toml` is kept minimal because this repo targets hosted Supabase, not the local Docker stack.
@@ -68,3 +75,5 @@ Connection-management functions expect these secrets:
 - secret-bearing writes are expected to run through Edge Functions or the service role
 - secret-bearing tables and columns stay off the browser path by default
 - current hosted connection functions: `create-instagram-connection`, `update-instagram-connection`, `delete-instagram-connection`, `resolve-instagram-connection`, `refresh-instagram-connection`
+- webhook runtime functions (repo): `instagram-webhook`, `retry-automation-executions`, `refresh-instagram-tokens`
+- webhook/runtime functions set `verify_jwt = false` via per-function `config.toml`
