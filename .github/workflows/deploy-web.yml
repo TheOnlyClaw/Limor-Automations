@@ -19,7 +19,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment: production
     env:
       BASE_PATH: /${{ github.event.repository.name }}/
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
