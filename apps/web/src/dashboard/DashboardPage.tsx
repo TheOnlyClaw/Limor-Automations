@@ -167,7 +167,7 @@ export function DashboardPage({
             replyTemplate: base.replyTemplate,
             replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
-            dmTemplate: base.dmTemplate,
+            dmTemplates: base.dmTemplates,
             dirty: false,
             saving: false,
             error: null,
@@ -195,7 +195,7 @@ export function DashboardPage({
             replyTemplate: base.replyTemplate,
             replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
-            dmTemplate: base.dmTemplate,
+            dmTemplates: base.dmTemplates,
             error: null,
           }
         }
@@ -231,14 +231,37 @@ export function DashboardPage({
       return
     }
 
-    if (draft.dmEnabled && !draft.dmTemplate.trim()) {
-      setListenerDraftsByPostId((m) => ({
-        ...m,
-        [postId]: m[postId]
-          ? { ...m[postId]!, error: 'DM message is enabled but empty' }
-          : m[postId],
-      }))
-      return
+    if (draft.dmEnabled) {
+      const dmMessages = draft.dmTemplates.map((template) => template.trim())
+      if (dmMessages.length === 0 || dmMessages.every((message) => !message)) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'DM message is enabled but empty' }
+            : m[postId],
+        }))
+        return
+      }
+
+      if (dmMessages.some((message) => !message)) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'Fill or remove empty DM tabs' }
+            : m[postId],
+        }))
+        return
+      }
+
+      if (dmMessages.some((message) => message.length > 999)) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'DM message exceeds 999 characters' }
+            : m[postId],
+        }))
+        return
+      }
     }
 
     const { rules, actions } = draftToRulesActions(draft)
@@ -266,21 +289,34 @@ export function DashboardPage({
     try {
       let res: PostAutomation | null = null
       const existingAutomationId = draft.automationId ?? automationByPostId[postId]?.id ?? null
+      const payload = {
+        enabled: draft.enabled,
+        rules,
+        actions,
+      }
 
       if (existingAutomationId) {
-        res = await patchPostAutomation(existingAutomationId, {
-          enabled: draft.enabled,
-          rules,
-          actions,
-        })
+        res = await patchPostAutomation(existingAutomationId, payload)
       } else {
-        res = await createPostAutomation({
-          connectionId,
-          igPostId: postId,
-          enabled: draft.enabled,
-          rules,
-          actions,
-        })
+        try {
+          res = await createPostAutomation({
+            connectionId,
+            igPostId: postId,
+            ...payload,
+          })
+        } catch (error) {
+          const isDuplicate =
+            error instanceof ApiError &&
+            error.message.toLowerCase().includes('automation already exists')
+
+          if (!isDuplicate) throw error
+
+          const existing = await listPostAutomations({ connectionId, igPostId: postId })
+          const fallback = existing[0]
+          if (!fallback) throw error
+
+          res = await patchPostAutomation(fallback.id, payload)
+        }
       }
 
       if (res) {
@@ -522,6 +558,7 @@ export function DashboardPage({
       ) : null}
 
       <AutomationDialog
+        key={configPostId ?? 'automation-dialog'}
         open={Boolean(configPostId && listenerDraftsByPostId[configPostId])}
         post={configPostId ? posts.find((p) => p.id === configPostId) ?? null : null}
         automation={configPostId ? automationByPostId[configPostId] : undefined}
@@ -625,14 +662,47 @@ export function DashboardPage({
               : m[configPostId],
           }))
         }}
-        onChangeDmTemplate={(dmTemplate) => {
+        onChangeDmTemplate={(index: number, dmTemplate: string) => {
           if (!configPostId) return
           setListenerDraftsByPostId((m) => ({
             ...m,
             [configPostId]: m[configPostId]
               ? {
                   ...m[configPostId]!,
-                  dmTemplate,
+                  dmTemplates: m[configPostId]!.dmTemplates.map((template, i) =>
+                    i === index ? dmTemplate : template,
+                  ),
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onAddDmTemplate={() => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmTemplates: [...m[configPostId]!.dmTemplates, ''],
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onRemoveDmTemplate={(index: number) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmTemplates:
+                    m[configPostId]!.dmTemplates.length > 1
+                      ? m[configPostId]!.dmTemplates.filter((_, i) => i !== index)
+                      : [''],
                   dirty: true,
                   error: null,
                 }

@@ -15,6 +15,7 @@ type ExecutionRow = {
   event_id: string
   automation_id: string
   action_type: 'reply' | 'dm'
+  action_id: string
   attempts: number
   status: 'queued' | 'failed' | 'skipped'
   updated_at: string
@@ -33,10 +34,12 @@ type AutomationRow = {
 }
 
 type ActionRow = {
+  id: string
   automation_id: string
   type: 'reply' | 'dm'
   template: string
   use_ai: boolean
+  sort_order: number
   created_at: string
 }
 
@@ -102,12 +105,12 @@ Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
-  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed')
+  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed', req)
 
   try {
     await requireUser(req)
   } catch (error) {
-    return errorResponse(401, error instanceof Error ? error.message : 'Unauthorized')
+    return errorResponse(401, error instanceof Error ? error.message : 'Unauthorized', req)
   }
 
   const admin = createAdminClient()
@@ -116,14 +119,14 @@ Deno.serve(async (req) => {
 
   const { data: rows, error } = await admin
     .from('automation_executions')
-    .select('id, event_id, automation_id, action_type, attempts, status, updated_at, message_text, message_source')
+    .select('id, event_id, automation_id, action_type, action_id, attempts, status, updated_at, message_text, message_source')
     .in('status', ['queued', 'failed'])
     .order('updated_at', { ascending: true })
     .limit(Math.max(batchSize * 3, batchSize))
 
   if (error) {
     console.error('Failed to load executions for retry', error)
-    return errorResponse(500, 'Unable to retry executions')
+    return errorResponse(500, 'Unable to retry executions', req)
   }
 
   const nowMs = Date.now()
@@ -136,7 +139,7 @@ Deno.serve(async (req) => {
   })
 
   const work = candidates.slice(0, batchSize) as ExecutionRow[]
-  if (work.length === 0) return jsonResponse({ attempted: 0, succeeded: 0, failed: 0 })
+  if (work.length === 0) return jsonResponse({ attempted: 0, succeeded: 0, failed: 0 }, 200, req)
 
   const eventIds = Array.from(new Set(work.map((row) => row.event_id)))
   const automationIds = Array.from(new Set(work.map((row) => row.automation_id)))
@@ -146,23 +149,23 @@ Deno.serve(async (req) => {
     admin.from('automations').select('id, connection_id').in('id', automationIds),
     admin
       .from('automation_actions')
-      .select('automation_id, type, template, use_ai, created_at')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at')
       .in('automation_id', automationIds),
   ])
 
   if (eventsRes.error) {
     console.error('Failed to load webhook events for retry', eventsRes.error)
-    return errorResponse(500, 'Unable to retry executions')
+    return errorResponse(500, 'Unable to retry executions', req)
   }
 
   if (automationsRes.error) {
     console.error('Failed to load automations for retry', automationsRes.error)
-    return errorResponse(500, 'Unable to retry executions')
+    return errorResponse(500, 'Unable to retry executions', req)
   }
 
   if (actionsRes.error) {
     console.error('Failed to load actions for retry', actionsRes.error)
-    return errorResponse(500, 'Unable to retry executions')
+    return errorResponse(500, 'Unable to retry executions', req)
   }
 
   const automationsById = new Map<string, AutomationRow>()
@@ -181,7 +184,7 @@ Deno.serve(async (req) => {
 
   if (connectionsError) {
     console.error('Failed to load connections for retry', connectionsError)
-    return errorResponse(500, 'Unable to retry executions')
+    return errorResponse(500, 'Unable to retry executions', req)
   }
 
   const connectionsById = new Map<string, ConnectionRow>()
@@ -189,11 +192,9 @@ Deno.serve(async (req) => {
     connectionsById.set(connection.id, connection as ConnectionRow)
   }
 
-  const actionsByKey = new Map<string, ActionRow>()
-  const sortedActions = [...(actionsRes.data ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at))
-  for (const action of sortedActions) {
-    const key = `${action.automation_id}:${action.type}`
-    if (!actionsByKey.has(key)) actionsByKey.set(key, action as ActionRow)
+  const actionsById = new Map<string, ActionRow>()
+  for (const action of actionsRes.data ?? []) {
+    actionsById.set(action.id, action as ActionRow)
   }
 
   const eventsById = new Map<string, EventRow>()
@@ -263,7 +264,7 @@ Deno.serve(async (req) => {
       continue
     }
 
-    const action = actionsByKey.get(`${execution.automation_id}:${execution.action_type}`)
+    const action = actionsById.get(execution.action_id)
     if (!action || !action.template.trim()) {
       await markExecution({
         admin,
@@ -402,5 +403,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ attempted, succeeded, failed })
+  return jsonResponse({ attempted, succeeded, failed }, 200, req)
 })

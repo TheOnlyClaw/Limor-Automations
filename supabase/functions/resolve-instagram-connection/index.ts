@@ -20,14 +20,14 @@ Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
-  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed')
+  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed', req)
 
   try {
     const user = await requireUser(req)
     const body = (await req.json().catch(() => null)) as ResolveConnectionBody | null
     const id = body?.id?.trim()
 
-    if (!id) return errorResponse(400, 'id is required')
+    if (!id) return errorResponse(400, 'id is required', req)
 
     const admin = createAdminClient()
     const { data: existing, error: existingError } = await admin
@@ -38,9 +38,9 @@ Deno.serve(async (req) => {
 
     if (existingError) {
       console.error('Failed to load connection before resolve', existingError)
-      return errorResponse(500, 'Unable to resolve connection')
+      return errorResponse(500, 'Unable to resolve connection', req)
     }
-    if (!existing || existing.owner_user_id !== user.id) return errorResponse(404, 'Connection not found')
+    if (!existing || existing.owner_user_id !== user.id) return errorResponse(404, 'Connection not found', req)
 
     try {
       const accessToken = await decryptString(existing.access_token_encrypted)
@@ -60,21 +60,21 @@ Deno.serve(async (req) => {
 
       if (error) {
         console.error('Failed to update connection after resolve', error)
-        return errorResponse(500, 'Unable to resolve connection')
+        return errorResponse(500, 'Unable to resolve connection', req)
       }
 
-      return jsonResponse(toSafeConnection(data as SafeConnectionRow))
+      return jsonResponse(toSafeConnection(data as SafeConnectionRow), 200, req)
     } catch (error) {
       if (error instanceof GraphError && [400, 401, 403].includes(error.status)) {
-        return errorResponse(422, error.message)
+        return errorResponse(422, error.message, req)
       }
 
       console.error('Instagram resolve failed', error)
-      return errorResponse(502, 'Instagram upstream error')
+      return errorResponse(502, 'Instagram upstream error', req)
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     const status = message === 'Unauthorized' ? 401 : 500
-    return errorResponse(status, message)
+    return errorResponse(status, message, req)
   }
 })

@@ -25,6 +25,8 @@ export function AutomationDialog({
   onChangeReplyTemplate,
   onToggleDm,
   onChangeDmTemplate,
+  onAddDmTemplate,
+  onRemoveDmTemplate,
   onSave,
 }: {
   open: boolean
@@ -39,10 +41,13 @@ export function AutomationDialog({
   onToggleReplyUseAi: (enabled: boolean) => void
   onChangeReplyTemplate: (template: string) => void
   onToggleDm: (enabled: boolean) => void
-  onChangeDmTemplate: (template: string) => void
+  onChangeDmTemplate: (index: number, template: string) => void
+  onAddDmTemplate: () => void
+  onRemoveDmTemplate: (index: number) => void
   onSave: () => void
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [dmTab, setDmTab] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -53,16 +58,15 @@ export function AutomationDialog({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose, open])
 
-  useEffect(() => {
-    if (!open) return
-    setStep(1)
-  }, [open, post?.id])
-
   if (!open) return null
   if (!draft) return null
 
   const rulesCount = automation?.rules?.length ?? 0
   const actionsCount = automation?.actions?.length ?? 0
+  const dmTemplates = draft.dmTemplates.length ? draft.dmTemplates : ['']
+  const safeDmTab = Math.min(dmTab, dmTemplates.length - 1)
+  const activeDmTemplate = dmTemplates[safeDmTab] ?? ''
+  const dmLimit = 999
 
   return (
     <div className="fixed inset-0 z-50">
@@ -101,7 +105,7 @@ export function AutomationDialog({
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {([
                 { id: 1, label: 'Pattern' },
-                { id: 2, label: 'DM message' },
+                { id: 2, label: 'DM messages' },
                 { id: 3, label: 'Reply message' },
               ] as const).map((item) => {
                 const isActive = step === item.id
@@ -171,8 +175,10 @@ export function AutomationDialog({
               <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-medium text-zinc-50">DM message</div>
-                    <div className="mt-1 text-xs text-zinc-500">Optional. Send a DM after a matched comment.</div>
+                    <div className="text-sm font-medium text-zinc-50">DM messages</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      Optional. Each DM is capped at 999 characters, so add tabs for longer sequences.
+                    </div>
                   </div>
                   <label className="flex items-center gap-2 text-xs text-zinc-300">
                     <span>Enable</span>
@@ -183,15 +189,70 @@ export function AutomationDialog({
                     />
                   </label>
                 </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {dmTemplates.map((_, index) => {
+                    const isActive = dmTab === index
+                    return (
+                      <button
+                        key={`dm-tab-${index}`}
+                        type="button"
+                        onClick={() => setDmTab(index)}
+                        disabled={!draft.dmEnabled}
+                        aria-current={isActive ? 'true' : undefined}
+                        className={
+                          isActive
+                            ? 'rounded-full border border-white/30 bg-white px-3 py-1 text-[11px] font-semibold text-zinc-950'
+                            : 'rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-60'
+                        }
+                      >
+                        DM {index + 1}
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!draft.dmEnabled) return
+                      setDmTab(dmTemplates.length)
+                      onAddDmTemplate()
+                    }}
+                    disabled={!draft.dmEnabled}
+                    className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-300 hover:text-zinc-50 disabled:opacity-60"
+                  >
+                    + Add DM
+                  </button>
+                  {dmTemplates.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!draft.dmEnabled) return
+                        const nextIndex =
+                          safeDmTab === dmTemplates.length - 1 ? safeDmTab - 1 : safeDmTab
+                        setDmTab(Math.max(0, nextIndex))
+                        onRemoveDmTemplate(safeDmTab)
+                      }}
+                      disabled={!draft.dmEnabled}
+                      className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
                 <textarea
                   className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
                   rows={5}
-                  value={draft.dmTemplate}
-                  onChange={(e) => onChangeDmTemplate(e.target.value)}
+                  value={activeDmTemplate}
+                  onChange={(e) => onChangeDmTemplate(safeDmTab, e.target.value)}
+                  maxLength={dmLimit}
                   placeholder="Your DM message"
                   disabled={!draft.dmEnabled}
                 />
-                <div className="mt-2 text-xs text-zinc-500">Empty messages can’t be saved.</div>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+                  <span>Empty messages can’t be saved.</span>
+                  <span className={activeDmTemplate.length >= dmLimit ? 'text-amber-300' : undefined}>
+                    {activeDmTemplate.length}/{dmLimit}
+                  </span>
+                </div>
               </div>
             ) : null}
 

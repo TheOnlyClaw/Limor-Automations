@@ -12,6 +12,7 @@ export type AutomationAction = {
   type: 'reply' | 'dm'
   template: string
   useAi: boolean
+  sortOrder: number
   createdAt: string
 }
 
@@ -36,6 +37,13 @@ function byCreatedAtAsc<T extends { created_at: string }>(a: T, b: T) {
   return a.created_at.localeCompare(b.created_at)
 }
 
+function byActionOrderAsc<T extends { sort_order?: number | null; created_at: string }>(a: T, b: T) {
+  const aOrder = a.sort_order ?? 0
+  const bOrder = b.sort_order ?? 0
+  if (aOrder !== bOrder) return aOrder - bOrder
+  return a.created_at.localeCompare(b.created_at)
+}
+
 function toActionType(value: string): 'reply' | 'dm' {
   return value === 'dm' ? 'dm' : 'reply'
 }
@@ -48,11 +56,12 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     createdAt: rule.created_at,
   }))
 
-  const actions = [...(row.automation_actions ?? [])].sort(byCreatedAtAsc).map((action) => ({
+  const actions = [...(row.automation_actions ?? [])].sort(byActionOrderAsc).map((action) => ({
     id: action.id,
     type: toActionType(action.type),
     template: action.template,
     useAi: Boolean(action.use_ai),
+    sortOrder: action.sort_order ?? 0,
     createdAt: action.created_at,
   }))
 

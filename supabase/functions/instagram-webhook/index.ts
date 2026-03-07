@@ -31,6 +31,7 @@ type ActionRow = {
   type: 'reply' | 'dm'
   template: string
   use_ai: boolean
+  sort_order: number
   created_at: string
 }
 
@@ -242,8 +243,7 @@ function parsePayload(rawBody: string) {
 async function markExecutionStatus(args: {
   admin: ReturnType<typeof createAdminClient>
   eventId: string
-  automationId: string
-  actionType: 'reply' | 'dm'
+  actionId: string
   status: 'succeeded' | 'failed'
   attempts: number
   lastError: string | null
@@ -271,8 +271,7 @@ async function markExecutionStatus(args: {
     .from('automation_executions')
     .update(updates)
     .eq('event_id', args.eventId)
-    .eq('automation_id', args.automationId)
-    .eq('action_type', args.actionType)
+    .eq('action_id', args.actionId)
 }
 
 async function processExecutions(args: {
@@ -307,11 +306,12 @@ async function processExecutions(args: {
     event_id: args.eventId,
     automation_id: execution.automationId,
     action_type: execution.action.type,
+    action_id: execution.action.id,
     status: execution.matched ? 'queued' : 'skipped',
   }))
 
   const { error: insertError } = await args.admin.from('automation_executions').upsert(rows, {
-    onConflict: 'event_id,automation_id,action_type',
+    onConflict: 'event_id,action_id',
     ignoreDuplicates: true,
   })
 
@@ -329,8 +329,7 @@ async function processExecutions(args: {
       await markExecutionStatus({
         admin: args.admin,
         eventId: args.eventId,
-        automationId: execution.automationId,
-        actionType: execution.action.type,
+        actionId: execution.action.id,
         status: 'failed',
         attempts: 1,
         lastError: message,
@@ -353,8 +352,7 @@ async function processExecutions(args: {
       await markExecutionStatus({
         admin: args.admin,
         eventId: args.eventId,
-        automationId: execution.automationId,
-        actionType: execution.action.type,
+        actionId: execution.action.id,
         status: 'failed',
         attempts: 1,
         lastError: 'Action template missing',
@@ -410,8 +408,7 @@ async function processExecutions(args: {
       await markExecutionStatus({
         admin: args.admin,
         eventId: args.eventId,
-        automationId: execution.automationId,
-        actionType: execution.action.type,
+        actionId: execution.action.id,
         status: 'succeeded',
         attempts: 1,
         lastError: null,
@@ -427,8 +424,7 @@ async function processExecutions(args: {
       await markExecutionStatus({
         admin: args.admin,
         eventId: args.eventId,
-        automationId: execution.automationId,
-        actionType: execution.action.type,
+        actionId: execution.action.id,
         status: 'failed',
         attempts: 1,
         lastError: message,
@@ -480,11 +476,11 @@ Deno.serve(async (req) => {
     const secrets = await resolveMetaAppSecrets(admin, metaAppId)
     if (metaAppId && !secrets.verifyToken) {
       console.warn('Instagram webhook verify token missing', { metaAppId })
-      return errorResponse(404, 'Webhook configuration not found')
+      return errorResponse(404, 'Webhook configuration not found', req)
     }
     if (!metaAppId && !secrets.verifyToken) {
       console.warn('Instagram webhook verify token missing (env)', { hasMetaAppId: false })
-      return errorResponse(500, 'Server not configured')
+      return errorResponse(500, 'Server not configured', req)
     }
 
     if (mode === 'subscribe' && token === secrets.verifyToken) {
@@ -494,7 +490,7 @@ Deno.serve(async (req) => {
       return new Response(String(challenge ?? ''), {
         status: 200,
         headers: {
-          ...corsHeaders,
+          ...corsHeaders(req),
           'Content-Type': 'text/plain',
         },
       })
@@ -507,10 +503,10 @@ Deno.serve(async (req) => {
       verifyTokenConfigured: Boolean(secrets.verifyToken),
       metaAppId: secrets.metaAppId ?? metaAppId,
     })
-    return errorResponse(403, 'Forbidden')
+    return errorResponse(403, 'Forbidden', req)
   }
 
-  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed')
+  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed', req)
 
   const rawBody = await req.text()
   const payload = parsePayload(rawBody)
@@ -526,11 +522,11 @@ Deno.serve(async (req) => {
   const secrets = await resolveMetaAppSecrets(admin, metaAppId)
   if (metaAppId && !secrets.appSecret) {
     console.warn('Instagram webhook app secret missing', { metaAppId })
-    return errorResponse(404, 'Webhook configuration not found')
+    return errorResponse(404, 'Webhook configuration not found', req)
   }
   if (!metaAppId && !secrets.appSecret) {
     console.warn('Instagram webhook app secret missing (env)', { hasMetaAppId: false })
-    return errorResponse(500, 'Server not configured')
+    return errorResponse(500, 'Server not configured', req)
   }
   const okSig = await verifyMetaSignature({
     secret: secrets.appSecret ?? '',
@@ -543,12 +539,12 @@ Deno.serve(async (req) => {
       signaturePresent: Boolean(signatureHeader),
       metaAppId: secrets.metaAppId ?? metaAppId,
     })
-    return errorResponse(401, 'Invalid signature')
+    return errorResponse(401, 'Invalid signature', req)
   }
 
   if (!parsed) {
     console.info('Instagram webhook ignored', { reason: 'no-comment-event' })
-    return jsonResponse({ ok: true })
+    return jsonResponse({ ok: true }, 200, req)
   }
 
   if (isReplyComment(parsed)) {
@@ -557,7 +553,7 @@ Deno.serve(async (req) => {
       commentId: parsed.commentId,
       igPostId: parsed.igPostId,
     })
-    return jsonResponse({ ok: true })
+    return jsonResponse({ ok: true }, 200, req)
   }
 
   if (isSelfComment(parsed)) {
@@ -566,7 +562,7 @@ Deno.serve(async (req) => {
       commentId: parsed.commentId,
       igPostId: parsed.igPostId,
     })
-    return jsonResponse({ ok: true })
+    return jsonResponse({ ok: true }, 200, req)
   }
 
   const dedupeKey = await computeDedupeKey(payload)
@@ -579,12 +575,12 @@ Deno.serve(async (req) => {
 
   if (automationError) {
     console.error('Failed to load automations for webhook', automationError)
-    return errorResponse(500, 'Unable to process webhook')
+    return errorResponse(500, 'Unable to process webhook', req)
   }
 
   if (!automations || automations.length === 0) {
     console.info('Instagram webhook no automations', { igPostId: parsed.igPostId })
-    return jsonResponse({ ok: true })
+    return jsonResponse({ ok: true }, 200, req)
   }
 
   const automationIds = automations.map((automation) => automation.id)
@@ -595,18 +591,18 @@ Deno.serve(async (req) => {
       .in('automation_id', automationIds),
     admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, created_at')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at')
       .in('automation_id', automationIds),
   ])
 
   if (rulesError) {
     console.error('Failed to load automation rules for webhook', rulesError)
-    return errorResponse(500, 'Unable to process webhook')
+    return errorResponse(500, 'Unable to process webhook', req)
   }
 
   if (actionsError) {
     console.error('Failed to load automation actions for webhook', actionsError)
-    return errorResponse(500, 'Unable to process webhook')
+    return errorResponse(500, 'Unable to process webhook', req)
   }
 
   const connectionIds = Array.from(new Set(automations.map((automation) => automation.connection_id)))
@@ -623,7 +619,7 @@ Deno.serve(async (req) => {
 
   if (connectionsError) {
     console.error('Failed to load connections for webhook', connectionsError)
-    return errorResponse(500, 'Unable to process webhook')
+    return errorResponse(500, 'Unable to process webhook', req)
   }
 
   const connectionsById = new Map<string, ConnectionRow>()
@@ -643,7 +639,10 @@ Deno.serve(async (req) => {
   for (const action of actions ?? []) {
     const list = actionsByAutomation.get(action.automation_id) ?? []
     list.push(action as ActionRow)
-    list.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    list.sort((a, b) => {
+      const orderDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      return orderDiff !== 0 ? orderDiff : a.created_at.localeCompare(b.created_at)
+    })
     actionsByAutomation.set(action.automation_id, list)
   }
 
@@ -660,7 +659,7 @@ Deno.serve(async (req) => {
 
   if (automationsByConnection.size === 0) {
     console.info('Instagram webhook no eligible connections', { igPostId: parsed.igPostId })
-    return jsonResponse({ ok: true })
+    return jsonResponse({ ok: true }, 200, req)
   }
 
   for (const [connectionId, connectionAutomations] of automationsByConnection.entries()) {
@@ -689,7 +688,7 @@ Deno.serve(async (req) => {
 
     if (eventError) {
       console.error('Failed to persist webhook event', eventError)
-      return errorResponse(500, 'Unable to process webhook')
+      return errorResponse(500, 'Unable to process webhook', req)
     }
 
     const eventId = eventRows?.[0]?.id
@@ -755,5 +754,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ ok: true })
+  return jsonResponse({ ok: true }, 200, req)
 })

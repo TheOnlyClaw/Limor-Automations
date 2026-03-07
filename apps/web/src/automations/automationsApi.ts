@@ -11,7 +11,7 @@ const automationSelect = [
   'created_at',
   'updated_at',
   'automation_rules(id, pattern, flags, created_at)',
-  'automation_actions(id, type, template, use_ai, created_at)',
+  'automation_actions(id, type, template, use_ai, sort_order, created_at)',
 ].join(', ')
 
 type RpcClient = {

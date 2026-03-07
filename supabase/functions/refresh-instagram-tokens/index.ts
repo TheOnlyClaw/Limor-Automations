@@ -91,16 +91,16 @@ Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
-  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed')
+  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed', req)
 
   try {
     await requireUser(req)
   } catch (error) {
-    return errorResponse(401, error instanceof Error ? error.message : 'Unauthorized')
+    return errorResponse(401, error instanceof Error ? error.message : 'Unauthorized', req)
   }
 
   const cfg = getInstagramTokenAutoRefreshConfig()
-  if (!cfg.enabled) return jsonResponse({ attempted: 0, refreshed: 0, skipped: 0 })
+  if (!cfg.enabled) return jsonResponse({ attempted: 0, refreshed: 0, skipped: 0 }, 200, req)
 
   const admin = createAdminClient()
   const { data: rows, error } = await admin
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
 
   if (error) {
     console.error('Failed to load connections for refresh', error)
-    return errorResponse(500, 'Unable to refresh tokens')
+    return errorResponse(500, 'Unable to refresh tokens', req)
   }
 
   const nowMs = Date.now()
@@ -207,5 +207,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return jsonResponse({ attempted, refreshed, skipped })
+  return jsonResponse({ attempted, refreshed, skipped }, 200, req)
 })

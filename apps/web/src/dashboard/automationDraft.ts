@@ -9,7 +9,7 @@ export type AutomationDraft = {
   replyTemplate: string
   replyUseAi: boolean
   dmEnabled: boolean
-  dmTemplate: string
+  dmTemplates: string[]
   dirty: boolean
   saving: boolean
   error: string | null
@@ -26,13 +26,14 @@ export function automationToDraftFields(
   | 'replyTemplate'
   | 'replyUseAi'
   | 'dmEnabled'
-  | 'dmTemplate'
+  | 'dmTemplates'
 > {
   const firstRule = a?.rules?.[0]
   const replyAction = a?.actions?.find((x) => x.type === 'reply')
-  const dmAction = a?.actions?.find((x) => x.type === 'dm')
+  const dmActions = a?.actions?.filter((x) => x.type === 'dm') ?? []
   const replyTemplate = replyAction?.template ?? ''
-  const dmTemplate = dmAction?.template ?? ''
+  const dmTemplates = dmActions.length ? dmActions.map((action) => action.template) : ['']
+  const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
 
   return {
     enabled: Boolean(a?.enabled),
@@ -41,8 +42,8 @@ export function automationToDraftFields(
     replyEnabled: replyTemplate.trim().length > 0,
     replyTemplate,
     replyUseAi: Boolean(replyAction?.useAi),
-    dmEnabled: dmTemplate.trim().length > 0,
-    dmTemplate,
+    dmEnabled,
+    dmTemplates,
   }
 }
 
@@ -52,6 +53,7 @@ export function draftToRulesActions(draft: AutomationDraft): {
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
+  const dmMessages = draft.dmTemplates.map((template) => template.trim()).filter(Boolean)
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
@@ -60,7 +62,9 @@ export function draftToRulesActions(draft: AutomationDraft): {
     actions.push({ type: 'reply', template: draft.replyTemplate.trim(), useAi: draft.replyUseAi })
   }
   if (draft.dmEnabled) {
-    actions.push({ type: 'dm', template: draft.dmTemplate.trim(), useAi: false })
+    for (const message of dmMessages) {
+      actions.push({ type: 'dm', template: message, useAi: false })
+    }
   }
 
   return { rules, actions }

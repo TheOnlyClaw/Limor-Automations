@@ -18,14 +18,14 @@ Deno.serve(async (req) => {
   const corsResponse = handleCors(req)
   if (corsResponse) return corsResponse
 
-  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed')
+  if (req.method !== 'POST') return errorResponse(405, 'Method not allowed', req)
 
   try {
     const user = await requireUser(req)
     const body = (await req.json().catch(() => null)) as CreateConnectionBody | null
     const accessToken = body?.accessToken?.trim()
 
-    if (!accessToken) return errorResponse(400, 'accessToken is required')
+    if (!accessToken) return errorResponse(400, 'accessToken is required', req)
 
     const label = body?.label?.trim() || null
     const igUserId = body?.igUserId?.trim() || null
@@ -47,12 +47,12 @@ Deno.serve(async (req) => {
 
     if (error) {
       console.error('Failed to create connection', error)
-      return errorResponse(500, 'Unable to create connection')
+      return errorResponse(500, 'Unable to create connection', req)
     }
-    return jsonResponse(toSafeConnection(data as SafeConnectionRow), 201)
+    return jsonResponse(toSafeConnection(data as SafeConnectionRow), 201, req)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unexpected error'
     const status = message === 'Unauthorized' ? 401 : 500
-    return errorResponse(status, message)
+    return errorResponse(status, message, req)
   }
 })

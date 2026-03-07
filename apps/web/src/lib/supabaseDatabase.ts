@@ -19,6 +19,7 @@ export type Database = {
           automation_id: string
           created_at: string
           id: string
+          sort_order: number
           template: string
           type: string
           use_ai: boolean
@@ -27,6 +28,7 @@ export type Database = {
           automation_id: string
           created_at?: string
           id?: string
+          sort_order?: number
           template: string
           type: string
           use_ai?: boolean
@@ -35,6 +37,7 @@ export type Database = {
           automation_id?: string
           created_at?: string
           id?: string
+          sort_order?: number
           template?: string
           type?: string
           use_ai?: boolean
@@ -51,6 +54,7 @@ export type Database = {
       }
       automation_executions: {
         Row: {
+          action_id: string
           action_type: string
           ai_error: string | null
           ai_latency_ms: number | null
@@ -69,6 +73,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          action_id: string
           action_type: string
           ai_error?: string | null
           ai_latency_ms?: number | null
@@ -87,6 +92,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          action_id?: string
           action_type?: string
           ai_error?: string | null
           ai_latency_ms?: number | null
@@ -110,6 +116,13 @@ export type Database = {
             columns: ["automation_id"]
             isOneToOne: false
             referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_executions_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "automation_actions"
             referencedColumns: ["id"]
           },
           {
