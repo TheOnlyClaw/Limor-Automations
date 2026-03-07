@@ -23,6 +23,7 @@ jobs:
       BASE_PATH: /${{ github.event.repository.name }}/
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      TEST_ENV: ${{ secrets.aasf }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
