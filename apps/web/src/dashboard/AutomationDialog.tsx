@@ -147,6 +147,7 @@ export function AutomationDialog({
                     <div className="text-[11px] text-zinc-400">Pattern (JS regex)</div>
                     <input
                       className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                      dir="rtl"
                       value={draft.pattern}
                       onChange={(e) => onChangePattern(e.target.value)}
                       placeholder="e.g. ^(yes|כן)$"
@@ -158,6 +159,7 @@ export function AutomationDialog({
                     <div className="text-[11px] text-zinc-400">Flags (optional)</div>
                     <input
                       className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                      dir="rtl"
                       value={draft.flags}
                       onChange={(e) => onChangeFlags(e.target.value)}
                       placeholder="i"
@@ -240,6 +242,7 @@ export function AutomationDialog({
                 </div>
                 <textarea
                   className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
+                  dir="rtl"
                   rows={5}
                   value={activeDmTemplate}
                   onChange={(e) => onChangeDmTemplate(safeDmTab, e.target.value)}
@@ -290,6 +293,7 @@ export function AutomationDialog({
                 </label>
                 <textarea
                   className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
+                  dir="rtl"
                   rows={5}
                   value={draft.replyTemplate}
                   onChange={(e) => onChangeReplyTemplate(e.target.value)}
