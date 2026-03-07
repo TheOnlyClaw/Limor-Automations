@@ -4,7 +4,7 @@ import { decryptString } from '../_shared/crypto.ts'
 import { sendCommentReply, sendDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
-import { extractCommentEvent, type ParsedCommentEvent } from '../_shared/webhook.ts'
+import { extractCommentEvent, isReplyComment, isSelfComment, type ParsedCommentEvent } from '../_shared/webhook.ts'
 
 declare const Deno: any
 
@@ -490,6 +490,24 @@ Deno.serve(async (req) => {
 
   if (!parsed) {
     console.info('Instagram webhook ignored', { reason: 'no-comment-event' })
+    return jsonResponse({ ok: true })
+  }
+
+  if (isReplyComment(parsed)) {
+    console.info('Instagram webhook ignored', {
+      reason: 'comment-reply',
+      commentId: parsed.commentId,
+      igPostId: parsed.igPostId,
+    })
+    return jsonResponse({ ok: true })
+  }
+
+  if (isSelfComment(parsed)) {
+    console.info('Instagram webhook ignored', {
+      reason: 'self-comment',
+      commentId: parsed.commentId,
+      igPostId: parsed.igPostId,
+    })
     return jsonResponse({ ok: true })
   }
 

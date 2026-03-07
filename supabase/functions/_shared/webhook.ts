@@ -3,6 +3,7 @@ export type ParsedCommentEvent = {
   commentId: string
   fromId: string | null
   selfIgScopedId: string | null
+  parentCommentId: string | null
   commentText: string
 }
 
@@ -22,6 +23,7 @@ export function extractCommentEvent(payload: unknown): ParsedCommentEvent | null
   const fromId = getString((from as Record<string, unknown> | undefined)?.id)
   const selfIgScopedId =
     getString(value?.self_ig_scoped_id) ?? getString((from as Record<string, unknown> | undefined)?.self_ig_scoped_id)
+  const parentCommentId = getString(value?.parent_id)
   const commentText = getString(value?.text) ?? getString(value?.message)
 
   if (!igPostId || !commentId || !commentText) return null
@@ -31,6 +33,15 @@ export function extractCommentEvent(payload: unknown): ParsedCommentEvent | null
     commentId,
     fromId,
     selfIgScopedId,
+    parentCommentId,
     commentText,
   }
+}
+
+export function isReplyComment(parsed: ParsedCommentEvent) {
+  return Boolean(parsed.parentCommentId)
+}
+
+export function isSelfComment(parsed: ParsedCommentEvent) {
+  return Boolean(parsed.fromId && parsed.selfIgScopedId && parsed.fromId === parsed.selfIgScopedId)
 }

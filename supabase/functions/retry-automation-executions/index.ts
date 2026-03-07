@@ -5,7 +5,7 @@ import { sendCommentReply, sendDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { requireUser } from '../_shared/auth.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
-import { extractCommentEvent } from '../_shared/webhook.ts'
+import { extractCommentEvent, isReplyComment, isSelfComment } from '../_shared/webhook.ts'
 
 declare const Deno: any
 
@@ -15,7 +15,7 @@ type ExecutionRow = {
   automation_id: string
   action_type: 'reply' | 'dm'
   attempts: number
-  status: 'queued' | 'failed'
+  status: 'queued' | 'failed' | 'skipped'
   updated_at: string
 }
 
@@ -65,7 +65,7 @@ function parseIsoMs(value: string | null) {
 async function markExecution(args: {
   admin: ReturnType<typeof createAdminClient>
   executionId: string
-  status: 'succeeded' | 'failed'
+  status: 'succeeded' | 'failed' | 'skipped'
   attempts: number
   lastError: string | null
 }) {
@@ -203,6 +203,24 @@ Deno.serve(async (req) => {
         lastError: 'Unsupported webhook payload for execution',
       })
       failed += 1
+      continue
+    }
+
+    let ignoreReason: string | null = null
+    if (isReplyComment(parsed)) {
+      ignoreReason = 'Reply comment ignored'
+    } else if (isSelfComment(parsed)) {
+      ignoreReason = 'Self comment ignored'
+    }
+
+    if (ignoreReason) {
+      await markExecution({
+        admin,
+        executionId: execution.id,
+        status: 'skipped',
+        attempts: execution.attempts + 1,
+        lastError: ignoreReason,
+      })
       continue
     }
 
