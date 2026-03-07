@@ -4,22 +4,15 @@
   "version": "0.0.0",
   "packageManager": "npm@10.8.2",
   "workspaces": [
-    "apps/*"
+    "apps/web"
   ],
   "scripts": {
-    "dev": "npm -w apps/api run dev & npm -w apps/web run dev & npm -w apps/webhooks run dev",
-    "dev:api": "npm -w apps/api run dev",
+    "dev": "npm -w apps/web run dev",
     "dev:web": "npm -w apps/web run dev",
-    "dev:webhooks": "npm -w apps/webhooks run dev",
-    "tunnel:api": "bash scripts/ngrok-api.sh",
-    "tunnel:webhooks": "bash scripts/ngrok-webhooks.sh",
-    "build": "npm -w apps/api run build && npm -w apps/webhooks run build && npm -w apps/web run build",
-    "lint": "npm -w apps/api run lint --if-present && npm -w apps/webhooks run lint --if-present && npm -w apps/web run lint --if-present",
-    "typecheck": "npm -w apps/api run typecheck --if-present && npm -w apps/webhooks run typecheck --if-present && npm -w apps/web run typecheck --if-present",
-    "spec": "opsx-kit",
-    "db:migrate": "npm -w apps/api run db:migrate",
-    "worker:events": "npm -w apps/api run worker:events",
-    "tokens:refresh-due": "npm -w apps/api run tokens:refresh-due"
+    "build": "npm -w apps/web run build",
+    "lint": "npm -w apps/web run lint --if-present",
+    "typecheck": "npm -w apps/web exec tsc -b",
+    "spec": "opsx-kit"
   },
   "devDependencies": {
     "openspec-kit": "^0.2.0"

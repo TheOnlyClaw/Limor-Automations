@@ -2,9 +2,8 @@
 
 Monorepo.
 
-- **API:** Fastify + TypeScript (`apps/api`)
+- **Supabase:** Hosted Postgres + Edge Functions (`supabase/`)
 - **Web:** React (Vite) + Tailwind CSS (`apps/web`)
-- **Specs:** OpenSpec (`openspec/`)
 
 ## Dev
 
@@ -14,27 +13,15 @@ Install:
 npm install
 ```
 
-Run both:
+Run web:
 
 ```bash
 npm run dev
 ```
 
-Run API only:
+## Supabase (Primary runtime)
 
-```bash
-npm run dev:api
-```
-
-Run web only:
-
-```bash
-npm run dev:web
-```
-
-## Supabase Migration Bootstrap
-
-The initial Supabase scaffold lives in `supabase/` and targets hosted Supabase.
+The Supabase migration is complete. Hosted Supabase is the primary backend, and ongoing schema/function changes live in `supabase/`. Legacy Fastify/webhook services have been removed from the repo.
 
 - repo config: `supabase/config.toml`
 - initial schema: `supabase/migrations/20260307130000_initial_app_schema.sql`

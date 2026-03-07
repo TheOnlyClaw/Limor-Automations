@@ -1,11 +1,11 @@
 # Dashboard Slice Plan
 
-This document turns the remaining Slice B work into an implementation-ready plan.
+This document captured the Slice B plan that was executed during the migration.
 
 Status:
 
-- this is the next implementation slice, not work that is already underway
-- start this slice after the two open follow-ups listed in `docs/supabase-migration/10-implementation-status.md` are completed or explicitly accepted as temporary risk
+- completed during the Supabase cutover on 2026-03-07
+- retained as a historical plan for reference
 
 Goal:
 
@@ -190,7 +190,7 @@ Expected outcome:
 
 - `npm -w apps/web run lint`
 - `npm -w apps/web exec tsc -b`
-- manual browser check: dashboard loads after sign-in without `VITE_API_BASE_URL`
+- manual browser check: dashboard loads after sign-in without a local Fastify API
 - manual browser check: selecting a connection loads posts successfully
 - manual browser check: create and update automation changes survive reload
 - manual browser check: no browser response exposes raw access tokens

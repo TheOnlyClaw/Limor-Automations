@@ -1,5 +1,7 @@
 # Edge Functions Spec
 
+Status: implemented and deployed during Supabase cutover. Legacy Fastify/SQLite services have been removed from the repo.
+
 Project target:
 
 - Supabase project `Limor-Automations`

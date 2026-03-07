@@ -1,6 +1,8 @@
 # Supabase Migration Guide
 
-This folder documents a full migration path from the current self-hosted Fastify + SQLite stack to a Supabase-backed, multi-user version with auth.
+This folder documents the migration path from the legacy self-hosted Fastify + SQLite stack to a Supabase-backed, multi-user version with auth.
+
+Status: migration complete as of 2026-03-07. Supabase is the source of truth for auth, data, and runtime; legacy Fastify/SQLite services have been removed from the repo.
 
 Files:
 
@@ -17,7 +19,7 @@ Files:
 - `docs/supabase-migration/11-dashboard-slice-plan.md` - detailed plan for the next dashboard migration slice
 - `docs/supabase-migration/12-connection-validation-checklist.md` - exact pre-Slice-B validation and hosted drift notes
 
-Recommended direction:
+Resulting direction:
 
 1. Move persistence from SQLite to Supabase Postgres.
 2. Add Supabase Auth and make every row user-scoped.
@@ -36,4 +38,4 @@ Important product decision:
 - If users should bring their own Meta app credentials, the webhook design must be tenant-aware from day one. A single global `META_APP_SECRET` no longer works.
 - If you are fine with one shared Meta app owned by you, the migration is much simpler and still supports per-user Instagram accounts and automations.
 
-The rest of this guide assumes the harder but more flexible target: authenticated multi-user SaaS with per-user ownership, and a design that can support either shared-app mode or bring-your-own-app mode.
+The migration shipped with the harder but more flexible target: authenticated multi-user SaaS with per-user ownership, and a design that can support either shared-app mode or bring-your-own-app mode.

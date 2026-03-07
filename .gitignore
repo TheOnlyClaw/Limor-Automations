@@ -12,11 +12,9 @@ node_modules
 .env.*
 
 # Builds
-apps/api/dist
 apps/web/dist
 
 # DB
 *.sqlite
 *.sqlite-journal
-apps/api/data/
 .opencode

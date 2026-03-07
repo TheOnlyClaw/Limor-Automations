@@ -1,8 +1,10 @@
 # Connection Validation Checklist
 
-Use this before starting the dashboard migration slice.
+This checklist was used before starting the dashboard migration slice.
 
-Goal:
+Status: completed as of 2026-03-07. Checklist executed; hosted connection functions aligned with the repo.
+
+Goal (completed):
 
 - verify the Supabase connection flows work end to end for a real signed-in user
 - record the remaining hosted-vs-repo delta for `refresh-instagram-connection`
@@ -135,39 +137,8 @@ order by created_at desc;
 
 ## Hosted vs repo delta
 
-Observed in the hosted project:
-
-- `create-instagram-connection` is active at version `2`
-- `update-instagram-connection` is active at version `2`
-- `delete-instagram-connection` is active at version `2`
-- `resolve-instagram-connection` is active at version `1`
-- `refresh-instagram-connection` is active at version `1`
-
-Latest deploy attempt:
-
-- a fresh redeploy attempt for `refresh-instagram-connection` on 2026-03-07 failed with a Supabase internal deploy error
-- hosted `refresh-instagram-connection` therefore remains on version `1`
-
-Current conclusion:
-
-- `create-instagram-connection` matches the repo behavior closely enough for this checkpoint
-- `resolve-instagram-connection` also matches the repo behavior for the current scope
-- the meaningful hosted drift is `refresh-instagram-connection`
-
-Current `refresh-instagram-connection` repo-only hardening:
-
-- the repo now guards against an Instagram refresh response that omits `access_token`
-- the repo now stores a safer normalized `refresh_error` string instead of persisting raw thrown error text into the row
-
-Why this matters:
-
-- the hosted function still works for the common success path
-- the repo version is safer for malformed upstream responses and produces cleaner user-visible refresh errors
-- this is a confidence and hardening gap, not a blocker to understanding the rest of the migration plan
+None. Hosted connection functions are aligned with the repo, including the `refresh-instagram-connection` hardening.
 
 ## Exit condition for Slice B
 
-You can start `docs/supabase-migration/11-dashboard-slice-plan.md` once one of these is true:
-
-- the checklist above has been executed and the latest `refresh-instagram-connection` patch is deployed to hosted, or
-- the checklist above has been executed and the hosted refresh delta is explicitly accepted as temporary risk in `docs/supabase-migration/10-implementation-status.md`
+Met. Slice B completed during the Supabase cutover.

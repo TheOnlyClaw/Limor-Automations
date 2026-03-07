@@ -211,7 +211,7 @@ export function InstagramConnectionsSection() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Instagram Connections</h1>
           <p className="mt-2 max-w-2xl text-sm text-zinc-300">
-            Slice A stores connections in Supabase under the signed-in user. Raw access tokens are only entered during create or replace and are never shown back in the UI.
+            Connections are stored in Supabase under the signed-in user. Raw access tokens are only entered during create or replace and are never shown back in the UI.
           </p>
         </div>
 
@@ -266,7 +266,7 @@ export function InstagramConnectionsSection() {
             </label>
 
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
-              Refresh, resolve IDs, and secure server-side token workflows move to Edge Functions in the next slice. This screen already uses Supabase Auth and user-scoped storage.
+              Refresh, resolve IDs, and secure server-side token workflows run through Supabase Edge Functions. This screen uses Supabase Auth and user-scoped storage.
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-2">
@@ -291,7 +291,7 @@ export function InstagramConnectionsSection() {
 
           {!connections.length && !loading ? (
             <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
-              Add your first connection to start migrating off the local NAS setup.
+              Add your first connection to start managing automations.
             </div>
           ) : null}
 

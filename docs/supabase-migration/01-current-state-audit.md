@@ -1,5 +1,7 @@
 # Current State Audit
 
+Status: historical snapshot from before the Supabase cutover. Legacy Fastify/SQLite services have been removed from the repo.
+
 ## Monorepo shape
 
 - `apps/api` is the main Fastify API.

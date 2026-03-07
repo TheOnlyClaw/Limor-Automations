@@ -1,5 +1,9 @@
 # Rollout Checklist
 
+## Status
+
+Migration complete as of 2026-03-07. Supabase is the primary runtime; legacy Fastify/SQLite services are no longer part of production and have been removed from the repo. The phases below are retained as a historical checklist.
+
 ## Phase 0 - decisions
 
 - choose shared Meta app vs bring-your-own Meta app
@@ -107,11 +111,11 @@ Exit criteria:
 
 ## Post-cutover cleanup
 
-- archive or remove `apps/api` once fully replaced
-- archive or remove `apps/webhooks` once fully replaced
-- delete SQLite-specific scripts and migration tooling
-- remove Vite proxy config
-- update root README with the new architecture
+- removed `apps/api` after Supabase cutover
+- removed `apps/webhooks` after Supabase cutover
+- deleted SQLite-specific scripts and migration tooling
+- removed Vite proxy config
+- updated root README with the new architecture
 
 ## Recommended implementation order
 

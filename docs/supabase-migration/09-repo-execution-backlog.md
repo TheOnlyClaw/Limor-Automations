@@ -2,9 +2,11 @@
 
 This is the concrete implementation order for this repository.
 
+Status: migration complete as of 2026-03-07. This backlog is archived and kept for reference. Legacy Fastify/SQLite services have been removed from the repo; file path references below are historical.
+
 ## Current progress snapshot
 
-Completed or mostly completed so far:
+Completed (migration complete):
 
 - `0. Bootstrap Supabase into the repo`
 - `1. Add frontend Supabase client and auth shell`
@@ -15,12 +17,12 @@ Completed or mostly completed so far:
 - `6. Add shared Edge Function helpers` (current subset needed for connections)
 - `7. Implement connection Edge Functions`
 - `8. Implement posts Edge Function`
-- `9. Implement webhook runtime (repo only)`
+- `9. Implement webhook runtime (repo + hosted)`
+- remaining runtime validation and Fastify retirement steps completed during cutover
 
 Still pending:
 
-- later runtime, webhook, and Fastify retirement steps
-- hosted deployment + validation for the webhook runtime
+- none (migration complete)
 
 See `docs/supabase-migration/10-implementation-status.md` for the detailed status log.
 
@@ -220,17 +222,14 @@ Implementation notes:
 
 ## 11. Remove Fastify dependencies from the app path
 
-Files to change later:
+Files updated during cutover:
 
 - `package.json`
 - `README.md`
-- `apps/api/package.json`
-- `apps/webhooks/package.json`
 
 Implementation notes:
 
-- only remove `apps/api` and `apps/webhooks` after the Supabase path is fully validated
-- until then, they are useful as behavior references
+- `apps/api` and `apps/webhooks` removed after the Supabase path was fully validated
 
 ## 12. Suggested delivery slices
 

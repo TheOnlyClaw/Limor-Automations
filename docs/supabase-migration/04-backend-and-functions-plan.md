@@ -1,5 +1,7 @@
 # Backend And Functions Plan
 
+Status: completed during Supabase cutover. Legacy Fastify/SQLite services have been removed from the repo.
+
 ## Goal
 
 Replace the current Fastify API, webhook service, and polling workers with Supabase-native primitives, but execute automations immediately when webhooks arrive whenever possible.

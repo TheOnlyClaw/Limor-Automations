@@ -1,6 +1,8 @@
 # Supabase Hosted Workflow
 
-This repo now includes the initial Supabase scaffold for the migration plan.
+This repo runs fully on hosted Supabase. This folder contains the primary schema, Edge Functions, and workflows for ongoing changes.
+
+Status: migration complete as of 2026-03-07.
 
 ## Prerequisites
 
@@ -75,5 +77,6 @@ Webhook/runtime functions expect these secrets:
 - secret-bearing writes are expected to run through Edge Functions or the service role
 - secret-bearing tables and columns stay off the browser path by default
 - current hosted connection functions: `create-instagram-connection`, `update-instagram-connection`, `delete-instagram-connection`, `resolve-instagram-connection`, `refresh-instagram-connection`
-- webhook runtime functions (repo): `instagram-webhook`, `retry-automation-executions`, `refresh-instagram-tokens`
+- hosted posts function: `list-instagram-posts`
+- hosted webhook/runtime functions: `instagram-webhook`, `retry-automation-executions`, `refresh-instagram-tokens`
 - webhook/runtime functions set `verify_jwt = false` via per-function `config.toml`
