@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import type { InstagramPost } from './instagramPostsApi'
 import type { PostAutomation } from './automationsApi'
 import type { AutomationDraft } from './automationDraft'
@@ -40,6 +40,8 @@ export function AutomationDialog({
   onChangeDmTemplate: (template: string) => void
   onSave: () => void
 }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1)
+
   useEffect(() => {
     if (!open) return
     function onKeyDown(e: KeyboardEvent) {
@@ -48,6 +50,11 @@ export function AutomationDialog({
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose, open])
+
+  useEffect(() => {
+    if (!open) return
+    setStep(1)
+  }, [open, post?.id])
 
   if (!open) return null
   if (!draft) return null
@@ -89,86 +96,130 @@ export function AutomationDialog({
           </div>
 
           <div className="max-h-[80vh] overflow-auto px-5 py-4">
-            <label className="flex items-center justify-between gap-3 text-sm text-zinc-200">
-              <span className="font-medium">Listen for comments</span>
-              <input
-                type="checkbox"
-                checked={draft.enabled}
-                onChange={(e) => onToggleEnabled(e.target.checked)}
-              />
-            </label>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 sm:col-span-2">
-                <div className="text-[11px] text-zinc-400">Pattern (JS regex)</div>
-                <input
-                  className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
-                  value={draft.pattern}
-                  onChange={(e) => onChangePattern(e.target.value)}
-                  placeholder="e.g. ^(yes|כן)$"
-                  disabled={!draft.enabled}
-                />
-              </label>
-
-              <label className="grid gap-1">
-                <div className="text-[11px] text-zinc-400">Flags (optional)</div>
-                <input
-                  className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
-                  value={draft.flags}
-                  onChange={(e) => onChangeFlags(e.target.value)}
-                  placeholder="i"
-                  disabled={!draft.enabled}
-                />
-              </label>
-              <div className="text-xs text-zinc-500 sm:self-end">
-                Match happens server-side (Node regex).
-              </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {([
+                { id: 1, label: 'Pattern' },
+                { id: 2, label: 'DM message' },
+                { id: 3, label: 'Reply message' },
+              ] as const).map((item) => {
+                const isActive = step === item.id
+                const isComplete = step > item.id
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setStep(item.id)}
+                    aria-current={isActive ? 'step' : undefined}
+                    className={
+                      isActive
+                        ? 'inline-flex items-center gap-2 rounded-full border border-white/30 bg-white px-3 py-1 text-zinc-950'
+                        : isComplete
+                          ? 'inline-flex items-center gap-2 rounded-full border border-emerald-900/60 bg-emerald-950/30 px-3 py-1 text-emerald-200'
+                          : 'inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-zinc-400 hover:text-zinc-200'
+                    }
+                  >
+                    <span className="text-[11px] font-semibold">{item.id}</span>
+                    <span className="text-[11px] font-semibold">{item.label}</span>
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-              <div className="text-sm font-medium text-zinc-50">Messages</div>
-              <div className="mt-1 text-xs text-zinc-500">Enable Reply, DM, or both. Empty messages can’t be saved.</div>
+            {step === 1 ? (
+              <div className="mt-5 grid gap-4">
+                <label className="flex items-center justify-between gap-3 text-sm text-zinc-200">
+                  <span className="font-medium">Listen for comments</span>
+                  <input
+                    type="checkbox"
+                    checked={draft.enabled}
+                    onChange={(e) => onToggleEnabled(e.target.checked)}
+                  />
+                </label>
 
-              <div className="mt-4 grid gap-4">
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                  <label className="flex items-center justify-between gap-3 text-sm text-zinc-200">
-                    <span className="font-medium">Reply</span>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="grid gap-1 sm:col-span-2">
+                    <div className="text-[11px] text-zinc-400">Pattern (JS regex)</div>
                     <input
-                      type="checkbox"
-                      checked={draft.replyEnabled}
-                      onChange={(e) => onToggleReply(e.target.checked)}
+                      className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                      value={draft.pattern}
+                      onChange={(e) => onChangePattern(e.target.value)}
+                      placeholder="e.g. ^(yes|כן)$"
+                      disabled={!draft.enabled}
                     />
                   </label>
-                  <textarea
-                    className="mt-2 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
-                    rows={4}
-                    value={draft.replyTemplate}
-                    onChange={(e) => onChangeReplyTemplate(e.target.value)}
-                    placeholder="Your public reply message"
-                    disabled={!draft.replyEnabled}
-                  />
-                </div>
 
-                <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                  <label className="flex items-center justify-between gap-3 text-sm text-zinc-200">
-                    <span className="font-medium">DM</span>
+                  <label className="grid gap-1">
+                    <div className="text-[11px] text-zinc-400">Flags (optional)</div>
+                    <input
+                      className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                      value={draft.flags}
+                      onChange={(e) => onChangeFlags(e.target.value)}
+                      placeholder="i"
+                      disabled={!draft.enabled}
+                    />
+                  </label>
+                  <div className="text-xs text-zinc-500 sm:self-end">
+                    Match happens server-side (Node regex).
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {step === 2 ? (
+              <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-zinc-50">DM message</div>
+                    <div className="mt-1 text-xs text-zinc-500">Optional. Send a DM after a matched comment.</div>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-zinc-300">
+                    <span>Enable</span>
                     <input
                       type="checkbox"
                       checked={draft.dmEnabled}
                       onChange={(e) => onToggleDm(e.target.checked)}
                     />
                   </label>
-                  <textarea
-                    className="mt-2 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
-                    rows={4}
-                    value={draft.dmTemplate}
-                    onChange={(e) => onChangeDmTemplate(e.target.value)}
-                    placeholder="Your DM message"
-                    disabled={!draft.dmEnabled}
-                  />
                 </div>
+                <textarea
+                  className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
+                  rows={5}
+                  value={draft.dmTemplate}
+                  onChange={(e) => onChangeDmTemplate(e.target.value)}
+                  placeholder="Your DM message"
+                  disabled={!draft.dmEnabled}
+                />
+                <div className="mt-2 text-xs text-zinc-500">Empty messages can’t be saved.</div>
               </div>
-            </div>
+            ) : null}
+
+            {step === 3 ? (
+              <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-zinc-50">Reply message</div>
+                    <div className="mt-1 text-xs text-zinc-500">Optional. Reply publicly on the comment.</div>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-zinc-300">
+                    <span>Enable</span>
+                    <input
+                      type="checkbox"
+                      checked={draft.replyEnabled}
+                      onChange={(e) => onToggleReply(e.target.checked)}
+                    />
+                  </label>
+                </div>
+                <textarea
+                  className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
+                  rows={5}
+                  value={draft.replyTemplate}
+                  onChange={(e) => onChangeReplyTemplate(e.target.value)}
+                  placeholder="Your public reply message"
+                  disabled={!draft.replyEnabled}
+                />
+                <div className="mt-2 text-xs text-zinc-500">Empty messages can’t be saved.</div>
+              </div>
+            ) : null}
 
             {draft.error ? <InlineError message={draft.error} /> : null}
           </div>
@@ -177,7 +228,23 @@ export function AutomationDialog({
             <div className="text-xs text-zinc-500">
               {draft.saving ? 'Saving…' : draft.dirty ? 'Unsaved changes' : automation ? 'Saved' : 'Not saved'}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900 disabled:opacity-60"
+                onClick={() => setStep((prev) => (prev === 1 ? prev : (prev - 1) as 1 | 2 | 3))}
+                disabled={step === 1}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900 disabled:opacity-60"
+                onClick={() => setStep((prev) => (prev === 3 ? prev : (prev + 1) as 1 | 2 | 3))}
+                disabled={step === 3}
+              >
+                Next
+              </button>
               <button
                 type="button"
                 className="rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900"
