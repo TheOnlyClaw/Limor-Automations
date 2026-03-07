@@ -6,15 +6,21 @@ node_modules
 
 # OS
 .DS_Store
+.idea/
 
 # Env
 .env
 .env.*
+.npmrc
 
 # Builds
 apps/web/dist
+bun.lock
 
 # DB
 *.sqlite
 *.sqlite-journal
 .opencode
+
+# Supabase
+supabase/.temp/
