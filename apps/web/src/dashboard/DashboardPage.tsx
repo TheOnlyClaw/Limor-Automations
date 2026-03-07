@@ -153,10 +153,10 @@ export function DashboardPage({
     if (!posts.length) return
     setListenerDraftsByPostId((prev) => {
       const next: Record<string, ListenerDraft | undefined> = { ...prev }
-        for (const p of posts) {
-          const existing = prev[p.id]
-          const a = automationByPostId[p.id]
-          if (!existing) {
+      for (const p of posts) {
+        const existing = prev[p.id]
+        const a = automationByPostId[p.id]
+        if (!existing) {
           const base = automationToDraftFields(a)
           next[p.id] = {
             automationId: a?.id ?? null,
@@ -165,6 +165,7 @@ export function DashboardPage({
             flags: base.flags,
             replyEnabled: base.replyEnabled,
             replyTemplate: base.replyTemplate,
+            replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
             dmTemplate: base.dmTemplate,
             dirty: false,
@@ -172,6 +173,13 @@ export function DashboardPage({
             error: null,
           }
           continue
+        }
+
+        if (!existing.automationId && a?.id) {
+          next[p.id] = {
+            ...existing,
+            automationId: a.id,
+          }
         }
 
         // Keep local draft in sync with backend unless the user has edits.
@@ -185,6 +193,7 @@ export function DashboardPage({
             flags: base.flags,
             replyEnabled: base.replyEnabled,
             replyTemplate: base.replyTemplate,
+            replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
             dmTemplate: base.dmTemplate,
             error: null,
@@ -256,9 +265,10 @@ export function DashboardPage({
 
     try {
       let res: PostAutomation | null = null
+      const existingAutomationId = draft.automationId ?? automationByPostId[postId]?.id ?? null
 
-      if (draft.automationId) {
-        res = await patchPostAutomation(draft.automationId, {
+      if (existingAutomationId) {
+        res = await patchPostAutomation(existingAutomationId, {
           enabled: draft.enabled,
           rules,
           actions,
@@ -567,6 +577,20 @@ export function DashboardPage({
               ? {
                   ...m[configPostId]!,
                   replyEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onToggleReplyUseAi={(replyUseAi) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  replyUseAi,
                   dirty: true,
                   error: null,
                 }

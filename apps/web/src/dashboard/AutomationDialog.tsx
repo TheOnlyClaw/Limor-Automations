@@ -21,6 +21,7 @@ export function AutomationDialog({
   onChangePattern,
   onChangeFlags,
   onToggleReply,
+  onToggleReplyUseAi,
   onChangeReplyTemplate,
   onToggleDm,
   onChangeDmTemplate,
@@ -35,6 +36,7 @@ export function AutomationDialog({
   onChangePattern: (pattern: string) => void
   onChangeFlags: (flags: string) => void
   onToggleReply: (enabled: boolean) => void
+  onToggleReplyUseAi: (enabled: boolean) => void
   onChangeReplyTemplate: (template: string) => void
   onToggleDm: (enabled: boolean) => void
   onChangeDmTemplate: (template: string) => void
@@ -198,7 +200,11 @@ export function AutomationDialog({
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-sm font-medium text-zinc-50">Reply message</div>
-                    <div className="mt-1 text-xs text-zinc-500">Optional. Reply publicly on the comment.</div>
+                    <div className="mt-1 text-xs text-zinc-500">
+                      {draft.replyUseAi
+                        ? 'AI will paraphrase this base message before sending.'
+                        : 'Optional. Reply publicly on the comment.'}
+                    </div>
                   </div>
                   <label className="flex items-center gap-2 text-xs text-zinc-300">
                     <span>Enable</span>
@@ -209,12 +215,24 @@ export function AutomationDialog({
                     />
                   </label>
                 </div>
+                <label className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-300">
+                  <span>
+                    <span className="block text-[11px] font-semibold text-zinc-200">Use AI to vary message</span>
+                    <span className="block text-[11px] text-zinc-500">Keeps the same meaning and tone.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={draft.replyUseAi}
+                    onChange={(e) => onToggleReplyUseAi(e.target.checked)}
+                    disabled={!draft.replyEnabled}
+                  />
+                </label>
                 <textarea
                   className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
                   rows={5}
                   value={draft.replyTemplate}
                   onChange={(e) => onChangeReplyTemplate(e.target.value)}
-                  placeholder="Your public reply message"
+                  placeholder={draft.replyUseAi ? 'Base public reply message' : 'Your public reply message'}
                   disabled={!draft.replyEnabled}
                 />
                 <div className="mt-2 text-xs text-zinc-500">Empty messages can’t be saved.</div>

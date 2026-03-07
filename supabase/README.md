@@ -60,6 +60,8 @@ Webhook/runtime functions expect these secrets:
 - `IG_WEBHOOK_VERIFY_TOKEN`
 - `FB_GRAPH_VERSION` (optional, defaults to `v19.0`)
 - `INTERNAL_FUNCTION_SECRET` (optional bearer token for scheduled functions)
+- `GEMINI_API_KEY` (required when AI message variations are enabled)
+- `GEMINI_MODEL` (optional, defaults to `gemini-2.5-flash`)
 
 ## Notes
 

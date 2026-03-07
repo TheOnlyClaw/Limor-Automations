@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { corsHeaders, errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts'
 import { decryptString } from '../_shared/crypto.ts'
+import { generateGeminiVariant } from '../_shared/gemini.ts'
 import { sendCommentReply, sendDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
@@ -29,6 +30,7 @@ type ActionRow = {
   automation_id: string
   type: 'reply' | 'dm'
   template: string
+  use_ai: boolean
   created_at: string
 }
 
@@ -245,10 +247,29 @@ async function markExecutionStatus(args: {
   status: 'succeeded' | 'failed'
   attempts: number
   lastError: string | null
+  messageText?: string | null
+  messageSource?: 'template' | 'ai' | null
+  aiError?: string | null
+  aiModel?: string | null
+  aiPromptVersion?: string | null
+  aiLatencyMs?: number | null
 }) {
+  const updates: Record<string, unknown> = {
+    status: args.status,
+    attempts: args.attempts,
+    last_error: args.lastError,
+  }
+
+  if (args.messageText !== undefined) updates.message_text = args.messageText
+  if (args.messageSource !== undefined) updates.message_source = args.messageSource
+  if (args.aiError !== undefined) updates.ai_error = args.aiError
+  if (args.aiModel !== undefined) updates.ai_model = args.aiModel
+  if (args.aiPromptVersion !== undefined) updates.ai_prompt_version = args.aiPromptVersion
+  if (args.aiLatencyMs !== undefined) updates.ai_latency_ms = args.aiLatencyMs
+
   await args.admin
     .from('automation_executions')
-    .update({ status: args.status, attempts: args.attempts, last_error: args.lastError })
+    .update(updates)
     .eq('event_id', args.eventId)
     .eq('automation_id', args.automationId)
     .eq('action_type', args.actionType)
@@ -342,12 +363,37 @@ async function processExecutions(args: {
       continue
     }
 
+    let messageText = template
+    let messageSource: 'template' | 'ai' = 'template'
+    let aiError: string | null = null
+    let aiModel: string | null = null
+    let aiPromptVersion: string | null = null
+    let aiLatencyMs: number | null = null
+
+    const useAi = execution.action.type === 'reply' && execution.action.use_ai
+    if (useAi) {
+      const aiResult = await generateGeminiVariant({
+        baseMessage: template,
+        commentText: args.parsed.commentText,
+      })
+      aiError = aiResult.error
+      aiModel = aiResult.model
+      aiPromptVersion = aiResult.promptVersion
+      aiLatencyMs = aiResult.latencyMs
+
+      if (aiResult.text) {
+        messageText = aiResult.text
+        messageSource = 'ai'
+        aiError = null
+      }
+    }
+
     try {
       if (execution.action.type === 'reply') {
         await sendCommentReply({
           accessToken,
           commentId: args.parsed.commentId,
-          message: template,
+          message: messageText,
         })
       } else {
         if (!args.connection.ig_user_id) {
@@ -357,7 +403,7 @@ async function processExecutions(args: {
           accessToken,
           senderIgUserId: args.connection.ig_user_id,
           commentId: args.parsed.commentId,
-          message: template,
+          message: messageText,
         })
       }
 
@@ -369,6 +415,12 @@ async function processExecutions(args: {
         status: 'succeeded',
         attempts: 1,
         lastError: null,
+        messageText,
+        messageSource,
+        aiError,
+        aiModel,
+        aiPromptVersion,
+        aiLatencyMs,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Execution failed'
@@ -380,6 +432,12 @@ async function processExecutions(args: {
         status: 'failed',
         attempts: 1,
         lastError: message,
+        messageText,
+        messageSource,
+        aiError,
+        aiModel,
+        aiPromptVersion,
+        aiLatencyMs,
       })
       failed += 1
       if (error instanceof GraphError) {
@@ -537,7 +595,7 @@ Deno.serve(async (req) => {
       .in('automation_id', automationIds),
     admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, created_at')
+      .select('id, automation_id, type, template, use_ai, created_at')
       .in('automation_id', automationIds),
   ])
 

@@ -1,6 +1,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts'
 import { decryptString } from '../_shared/crypto.ts'
+import { generateGeminiVariant } from '../_shared/gemini.ts'
 import { sendCommentReply, sendDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { requireUser } from '../_shared/auth.ts'
@@ -17,6 +18,8 @@ type ExecutionRow = {
   attempts: number
   status: 'queued' | 'failed' | 'skipped'
   updated_at: string
+  message_text: string | null
+  message_source: 'template' | 'ai' | null
 }
 
 type EventRow = {
@@ -33,6 +36,7 @@ type ActionRow = {
   automation_id: string
   type: 'reply' | 'dm'
   template: string
+  use_ai: boolean
   created_at: string
 }
 
@@ -68,10 +72,29 @@ async function markExecution(args: {
   status: 'succeeded' | 'failed' | 'skipped'
   attempts: number
   lastError: string | null
+  messageText?: string | null
+  messageSource?: 'template' | 'ai' | null
+  aiError?: string | null
+  aiModel?: string | null
+  aiPromptVersion?: string | null
+  aiLatencyMs?: number | null
 }) {
+  const updates: Record<string, unknown> = {
+    status: args.status,
+    attempts: args.attempts,
+    last_error: args.lastError,
+  }
+
+  if (args.messageText !== undefined) updates.message_text = args.messageText
+  if (args.messageSource !== undefined) updates.message_source = args.messageSource
+  if (args.aiError !== undefined) updates.ai_error = args.aiError
+  if (args.aiModel !== undefined) updates.ai_model = args.aiModel
+  if (args.aiPromptVersion !== undefined) updates.ai_prompt_version = args.aiPromptVersion
+  if (args.aiLatencyMs !== undefined) updates.ai_latency_ms = args.aiLatencyMs
+
   await args.admin
     .from('automation_executions')
-    .update({ status: args.status, attempts: args.attempts, last_error: args.lastError })
+    .update(updates)
     .eq('id', args.executionId)
 }
 
@@ -93,7 +116,7 @@ Deno.serve(async (req) => {
 
   const { data: rows, error } = await admin
     .from('automation_executions')
-    .select('id, event_id, automation_id, action_type, attempts, status, updated_at')
+    .select('id, event_id, automation_id, action_type, attempts, status, updated_at, message_text, message_source')
     .in('status', ['queued', 'failed'])
     .order('updated_at', { ascending: true })
     .limit(Math.max(batchSize * 3, batchSize))
@@ -121,7 +144,10 @@ Deno.serve(async (req) => {
   const [eventsRes, automationsRes, actionsRes] = await Promise.all([
     admin.from('instagram_webhook_events').select('id, payload').in('id', eventIds),
     admin.from('automations').select('id, connection_id').in('id', automationIds),
-    admin.from('automation_actions').select('automation_id, type, template, created_at').in('automation_id', automationIds),
+    admin
+      .from('automation_actions')
+      .select('automation_id, type, template, use_ai, created_at')
+      .in('automation_id', automationIds),
   ])
 
   if (eventsRes.error) {
@@ -250,6 +276,45 @@ Deno.serve(async (req) => {
       continue
     }
 
+    const storedMessage = execution.message_text?.trim() ?? ''
+    let messageText = storedMessage
+    let messageSource = execution.message_source ?? null
+    let aiError: string | null = null
+    let aiModel: string | null = null
+    let aiPromptVersion: string | null = null
+    let aiLatencyMs: number | null = null
+
+    const useAi = execution.action_type === 'reply' && action.use_ai
+    if (!messageText) {
+      const template = action.template.trim()
+      if (useAi) {
+        const aiResult = await generateGeminiVariant({
+          baseMessage: template,
+          commentText: parsed.commentText,
+        })
+        aiError = aiResult.error
+        aiModel = aiResult.model
+        aiPromptVersion = aiResult.promptVersion
+        aiLatencyMs = aiResult.latencyMs
+
+        if (aiResult.text) {
+          messageText = aiResult.text
+          messageSource = 'ai'
+          aiError = null
+        } else {
+          messageText = template
+          messageSource = 'template'
+        }
+      } else {
+        messageText = template
+        messageSource = 'template'
+      }
+    }
+
+    if (!messageSource) {
+      messageSource = useAi ? 'ai' : 'template'
+    }
+
     const connection = connectionsById.get(automation.connection_id)
     if (!connection) {
       await markExecution({
@@ -285,7 +350,7 @@ Deno.serve(async (req) => {
         await sendCommentReply({
           accessToken,
           commentId: parsed.commentId,
-          message: action.template.trim(),
+          message: messageText,
         })
       } else {
         if (!connection.ig_user_id) {
@@ -295,7 +360,7 @@ Deno.serve(async (req) => {
           accessToken,
           senderIgUserId: connection.ig_user_id,
           commentId: parsed.commentId,
-          message: action.template.trim(),
+          message: messageText,
         })
       }
 
@@ -305,6 +370,12 @@ Deno.serve(async (req) => {
         status: 'succeeded',
         attempts: execution.attempts + 1,
         lastError: null,
+        messageText,
+        messageSource,
+        aiError,
+        aiModel,
+        aiPromptVersion,
+        aiLatencyMs,
       })
       succeeded += 1
     } catch (error) {
@@ -315,6 +386,12 @@ Deno.serve(async (req) => {
         status: 'failed',
         attempts: execution.attempts + 1,
         lastError: message,
+        messageText,
+        messageSource,
+        aiError,
+        aiModel,
+        aiPromptVersion,
+        aiLatencyMs,
       })
       failed += 1
       if (error instanceof GraphError) {

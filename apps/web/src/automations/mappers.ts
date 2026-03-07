@@ -11,6 +11,7 @@ export type AutomationAction = {
   id: string
   type: 'reply' | 'dm'
   template: string
+  useAi: boolean
   createdAt: string
 }
 
@@ -51,6 +52,7 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     id: action.id,
     type: toActionType(action.type),
     template: action.template,
+    useAi: Boolean(action.use_ai),
     createdAt: action.created_at,
   }))
 
