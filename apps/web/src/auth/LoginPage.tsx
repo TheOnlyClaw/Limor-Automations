@@ -4,8 +4,18 @@ import { supabase } from '../lib/supabase'
 
 type AuthMode = 'sign_in' | 'sign_up'
 
+const basePath = import.meta.env.BASE_URL ?? '/'
+const basePrefix = basePath === '/' ? '' : basePath.replace(/\/+$/g, '')
+
+function withBasePath(pathname: string) {
+  if (!basePrefix) return pathname
+  if (pathname === '/') return `${basePrefix}/`
+  if (pathname.startsWith(`${basePrefix}/`)) return pathname
+  return `${basePrefix}${pathname.startsWith('/') ? '' : '/'}${pathname}`
+}
+
 function goToDashboard() {
-  window.history.replaceState(null, '', '/dashboard')
+  window.history.replaceState(null, '', withBasePath('/dashboard'))
   window.dispatchEvent(new PopStateEvent('popstate'))
 }
 

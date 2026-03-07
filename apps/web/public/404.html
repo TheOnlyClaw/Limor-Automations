@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+    <script>
+      ;(function () {
+        var location = window.location
+        var segments = location.pathname.split('/')
+        var firstSegment = segments.length > 1 ? segments[1] : ''
+        var knownRoutes = ['dashboard', 'settings', 'login']
+        var basePath = knownRoutes.indexOf(firstSegment) !== -1 || !firstSegment ? '' : '/' + firstSegment
+        var path = location.pathname.startsWith(basePath)
+          ? location.pathname.slice(basePath.length)
+          : location.pathname
+        var redirectPath = path || '/'
+        var target = new URL(basePath + '/', location.origin)
+        target.search = location.search
+        target.searchParams.set('redirect', redirectPath)
+        target.hash = location.hash
+        location.replace(target.toString())
+      })()
+    </script>
+  </head>
+  <body></body>
+</html>

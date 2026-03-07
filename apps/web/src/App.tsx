@@ -11,30 +11,70 @@ function normalizePathname(p: string) {
   return '/dashboard'
 }
 
+const basePath = import.meta.env.BASE_URL ?? '/'
+const basePrefix = basePath === '/' ? '' : basePath.replace(/\/+$/g, '')
+
+function stripBasePath(pathname: string) {
+  if (!basePrefix) return pathname
+  if (pathname === basePrefix) return '/'
+  if (pathname.startsWith(`${basePrefix}/`)) return pathname.slice(basePrefix.length)
+  return pathname
+}
+
+function withBasePath(pathname: string) {
+  if (!basePrefix) return pathname
+  if (pathname === '/') return `${basePrefix}/`
+  if (pathname.startsWith(`${basePrefix}/`)) return pathname
+  return `${basePrefix}${pathname.startsWith('/') ? '' : '/'}${pathname}`
+}
+
+function readRedirectPath() {
+  const params = new URLSearchParams(window.location.search)
+  const redirect = params.get('redirect')
+  if (!redirect) return null
+  const [pathPart] = redirect.split(/[?#]/)
+  if (!pathPart) return '/'
+  return pathPart.startsWith('/') ? pathPart : `/${pathPart}`
+}
+
+function buildUrlWithPath(pathname: string) {
+  const url = new URL(window.location.href)
+  const params = new URLSearchParams(url.search)
+  if (params.has('redirect')) params.delete('redirect')
+  const search = params.toString()
+  return `${withBasePath(pathname)}${search ? `?${search}` : ''}${url.hash}`
+}
+
 export default function App() {
-  const [path, setPath] = useState(() => normalizePathname(window.location.pathname))
+  const redirectPath = readRedirectPath()
+  const [path, setPath] = useState(() =>
+    normalizePathname(redirectPath ?? stripBasePath(window.location.pathname)),
+  )
 
   function navigate(href: string, opts?: { replace?: boolean }) {
-    if (href === window.location.pathname && !opts?.replace) return
-    if (opts?.replace) window.history.replaceState(null, '', href)
-    else window.history.pushState(null, '', href)
-    setPath(href)
+    const target = withBasePath(href)
+    if (target === window.location.pathname && !opts?.replace) return
+    if (opts?.replace) window.history.replaceState(null, '', target)
+    else window.history.pushState(null, '', target)
+    setPath(normalizePathname(href))
   }
 
   useEffect(() => {
     function onPop() {
-      setPath(normalizePathname(window.location.pathname))
+      setPath(normalizePathname(stripBasePath(window.location.pathname)))
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
   useEffect(() => {
-    const normalized = normalizePathname(window.location.pathname)
-    if (normalized !== window.location.pathname) {
-      window.history.replaceState(null, '', normalized)
+    const normalized = normalizePathname(redirectPath ?? stripBasePath(window.location.pathname))
+    const target = buildUrlWithPath(normalized)
+    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+    if (current !== target) {
+      window.history.replaceState(null, '', target)
     }
-  }, [])
+  }, [redirectPath])
 
   return (
     <AuthGate>
