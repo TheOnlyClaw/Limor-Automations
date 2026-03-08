@@ -23,6 +23,9 @@ export type PostAutomation = {
   igPostId: string
   name: string | null
   enabled: boolean
+  dmCtaGreeting: string | null
+  dmCtaText: string | null
+  dmCtaEnabled: boolean
   rules: AutomationRule[]
   actions: AutomationAction[]
   createdAt: string
@@ -73,6 +76,9 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     igPostId: row.ig_post_id,
     name: row.name,
     enabled: row.enabled,
+    dmCtaGreeting: row.dm_cta_greeting ?? null,
+    dmCtaText: row.dm_cta_text ?? null,
+    dmCtaEnabled: Boolean(row.dm_cta_enabled),
     rules,
     actions,
     createdAt: row.created_at,

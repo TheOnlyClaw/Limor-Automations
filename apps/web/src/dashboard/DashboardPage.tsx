@@ -188,6 +188,8 @@ export function DashboardPage({
               dmEnabled: base.dmEnabled,
               dmTemplates: base.dmTemplates,
               dmCtaText: base.dmCtaText,
+              dmCtaGreeting: base.dmCtaGreeting,
+              dmCtaEnabled: base.dmCtaEnabled,
               dirty: false,
               saving: false,
               error: null,
@@ -217,6 +219,8 @@ export function DashboardPage({
             dmEnabled: base.dmEnabled,
             dmTemplates: base.dmTemplates,
             dmCtaText: base.dmCtaText,
+            dmCtaGreeting: base.dmCtaGreeting,
+            dmCtaEnabled: base.dmCtaEnabled,
             error: null,
           }
         }
@@ -401,11 +405,21 @@ export function DashboardPage({
         return
       }
 
-      if (dmMessages.length > 1 && !draft.dmCtaText.trim()) {
+      if ((dmMessages.length > 1 || draft.dmCtaEnabled) && !draft.dmCtaGreeting.trim()) {
         setListenerDraftsByPostId((m) => ({
           ...m,
           [postId]: m[postId]
-            ? { ...m[postId]!, error: 'CTA text is required for multiple DMs' }
+            ? { ...m[postId]!, error: 'CTA greeting message is required' }
+            : m[postId],
+        }))
+        return
+      }
+
+      if ((dmMessages.length > 1 || draft.dmCtaEnabled) && !draft.dmCtaText.trim()) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'CTA button text is required' }
             : m[postId],
         }))
         return
@@ -449,6 +463,9 @@ export function DashboardPage({
       const existingAutomationId = draft.automationId ?? automationByPostId[postId]?.id ?? null
       const payload = {
         enabled: draft.enabled,
+        dmCtaText: draft.dmCtaText.trim() || null,
+        dmCtaGreeting: draft.dmCtaGreeting.trim() || null,
+        dmCtaEnabled: draft.dmCtaEnabled,
         rules,
         actions,
       }
@@ -835,6 +852,8 @@ export function DashboardPage({
                   ...m[configPostId]!,
                   dmEnabled,
                   dmCtaText: dmEnabled ? m[configPostId]!.dmCtaText : '',
+                  dmCtaGreeting: dmEnabled ? m[configPostId]!.dmCtaGreeting : '',
+                  dmCtaEnabled: dmEnabled ? m[configPostId]!.dmCtaEnabled : false,
                   dirty: true,
                   error: null,
                 }
@@ -852,6 +871,8 @@ export function DashboardPage({
                     i === index ? dmTemplate : template,
                   ),
                   dmCtaText: m[configPostId]!.dmCtaText,
+                  dmCtaGreeting: m[configPostId]!.dmCtaGreeting,
+                  dmCtaEnabled: m[configPostId]!.dmCtaEnabled,
                   dirty: true,
                   error: null,
                 }
@@ -867,6 +888,8 @@ export function DashboardPage({
                   ...m[configPostId]!,
                   dmTemplates: [...m[configPostId]!.dmTemplates, ''],
                   dmCtaText: m[configPostId]!.dmCtaText,
+                  dmCtaGreeting: m[configPostId]!.dmCtaGreeting,
+                  dmCtaEnabled: m[configPostId]!.dmCtaEnabled,
                   dirty: true,
                   error: null,
                 }
@@ -885,6 +908,8 @@ export function DashboardPage({
                       ? m[configPostId]!.dmTemplates.filter((_, i) => i !== index)
                       : [''],
                   dmCtaText: m[configPostId]!.dmCtaText,
+                  dmCtaGreeting: m[configPostId]!.dmCtaGreeting,
+                  dmCtaEnabled: m[configPostId]!.dmCtaEnabled,
                   dirty: true,
                   error: null,
                 }
@@ -899,6 +924,40 @@ export function DashboardPage({
               ? {
                   ...m[configPostId]!,
                   dmCtaText,
+                  dmCtaGreeting: m[configPostId]!.dmCtaGreeting,
+                  dmCtaEnabled: m[configPostId]!.dmCtaEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onChangeDmCtaGreeting={(dmCtaGreeting: string) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmCtaGreeting,
+                  dmCtaText: m[configPostId]!.dmCtaText,
+                  dmCtaEnabled: m[configPostId]!.dmCtaEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onToggleDmCtaEnabled={(dmCtaEnabled: boolean) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmCtaEnabled,
+                  dmCtaGreeting: m[configPostId]!.dmCtaGreeting,
+                  dmCtaText: m[configPostId]!.dmCtaText,
                   dirty: true,
                   error: null,
                 }

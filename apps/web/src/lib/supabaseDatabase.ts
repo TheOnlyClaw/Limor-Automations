@@ -176,6 +176,9 @@ export type Database = {
         Row: {
           connection_id: string
           created_at: string
+          dm_cta_enabled: boolean
+          dm_cta_greeting: string | null
+          dm_cta_text: string | null
           enabled: boolean
           id: string
           ig_post_id: string
@@ -186,6 +189,9 @@ export type Database = {
         Insert: {
           connection_id: string
           created_at?: string
+          dm_cta_enabled?: boolean
+          dm_cta_greeting?: string | null
+          dm_cta_text?: string | null
           enabled?: boolean
           id?: string
           ig_post_id: string
@@ -196,6 +202,9 @@ export type Database = {
         Update: {
           connection_id?: string
           created_at?: string
+          dm_cta_enabled?: boolean
+          dm_cta_greeting?: string | null
+          dm_cta_text?: string | null
           enabled?: boolean
           id?: string
           ig_post_id?: string

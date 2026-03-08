@@ -28,6 +28,8 @@ export function AutomationDialog({
   onAddDmTemplate,
   onRemoveDmTemplate,
   onChangeDmCtaText,
+  onChangeDmCtaGreeting,
+  onToggleDmCtaEnabled,
   onSave,
 }: {
   open: boolean
@@ -46,6 +48,8 @@ export function AutomationDialog({
   onAddDmTemplate: () => void
   onRemoveDmTemplate: (index: number) => void
   onChangeDmCtaText: (ctaText: string) => void
+  onChangeDmCtaGreeting: (ctaGreeting: string) => void
+  onToggleDmCtaEnabled: (enabled: boolean) => void
   onSave: () => void
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -68,7 +72,9 @@ export function AutomationDialog({
   const dmTemplates = draft.dmTemplates.length ? draft.dmTemplates : ['']
   const safeDmTab = Math.min(dmTab, dmTemplates.length - 1)
   const activeDmTemplate = dmTemplates[safeDmTab] ?? ''
-  const showDmCta = draft.dmEnabled && dmTemplates.filter((template) => template.trim().length > 0).length > 1
+  const dmCount = dmTemplates.filter((template) => template.trim().length > 0).length
+  const hasCtaContent = Boolean(draft.dmCtaText.trim() || draft.dmCtaGreeting.trim())
+  const showDmCta = draft.dmEnabled && (dmCount > 1 || draft.dmCtaEnabled || hasCtaContent)
   const dmLimit = 999
 
   return (
@@ -262,12 +268,35 @@ export function AutomationDialog({
                 {showDmCta ? (
                   <div className="mt-4 grid gap-2 rounded-xl border border-amber-900/50 bg-amber-950/20 px-3 py-2">
                     <div className="text-[11px] font-semibold text-amber-200">
-                      Private accounts require a tap to receive multiple DMs.
+                      We send a greeting with a button before the DM sequence.
                     </div>
+                    {dmCount <= 1 ? (
+                      <label className="flex items-center justify-between gap-3 text-[11px] text-amber-100/80">
+                        <span>Enable CTA greeting</span>
+                        <input
+                          type="checkbox"
+                          checked={draft.dmCtaEnabled}
+                          onChange={(e) => onToggleDmCtaEnabled(e.target.checked)}
+                          disabled={!draft.dmEnabled}
+                        />
+                      </label>
+                    ) : null}
+                    <label className="grid gap-1">
+                      <div className="text-[11px] text-amber-100/80">Greeting message</div>
+                      <textarea
+                        className="min-h-[72px] w-full resize-y rounded-lg border border-amber-900/60 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-600 focus:outline-none"
+                        dir="rtl"
+                        value={draft.dmCtaGreeting}
+                        onChange={(e) => onChangeDmCtaGreeting(e.target.value)}
+                        placeholder="Thanks for your comment! Tap below to receive the messages."
+                        disabled={!draft.dmEnabled}
+                      />
+                    </label>
                     <label className="grid gap-1">
                       <div className="text-[11px] text-amber-100/80">CTA button text</div>
                       <input
                         className="h-9 rounded-lg border border-amber-900/60 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-600 focus:outline-none"
+                        dir="rtl"
                         value={draft.dmCtaText}
                         onChange={(e) => onChangeDmCtaText(e.target.value)}
                         maxLength={20}

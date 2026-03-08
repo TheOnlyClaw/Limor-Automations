@@ -15,6 +15,9 @@ type AutomationRow = {
   id: string
   owner_user_id: string
   connection_id: string
+  dm_cta_text: string | null
+  dm_cta_greeting: string | null
+  dm_cta_enabled: boolean
 }
 
 type RuleRow = {
@@ -432,31 +435,10 @@ async function processExecutions(args: {
   let attempted = 0
   let failed = 0
 
-  const dmCountsByAutomation = new Map<string, number>()
-  for (const execution of executions) {
-    if (execution.action.type !== 'dm') continue
-    dmCountsByAutomation.set(
-      execution.automationId,
-      (dmCountsByAutomation.get(execution.automationId) ?? 0) + 1,
-    )
-  }
-
-  const gatedDmActionByAutomation = new Map<string, string | null>()
-  for (const execution of executions) {
-    if (execution.action.type !== 'dm') continue
-    const total = dmCountsByAutomation.get(execution.automationId) ?? 0
-    if (total < 2) continue
-    if (!gatedDmActionByAutomation.has(execution.automationId)) {
-      gatedDmActionByAutomation.set(execution.automationId, execution.action.id)
-    }
-  }
-
   const existingByActionId = new Map<string, { status: string }>()
   for (const row of (existingRows ?? []) as Array<{ action_id: string; status: string }>) {
     if (row?.action_id) existingByActionId.set(row.action_id, { status: row.status })
   }
-
-  const awaitingStatusByAutomation = new Set<string>()
 
   for (const execution of executions) {
     const existingStatus = existingByActionId.get(execution.action.id)?.status
@@ -507,36 +489,10 @@ async function processExecutions(args: {
       }
     }
 
-    const shouldGate =
-      execution.action.type === 'dm' &&
-      gatedDmActionByAutomation.get(execution.automationId) !== execution.action.id
-
-    const gateActionId = gatedDmActionByAutomation.get(execution.automationId)
-    if (
-      shouldGate &&
-      gateActionId &&
-      existingByActionId.get(gateActionId)?.status === 'failed'
-    ) {
-      await markExecutionStatus({
-        admin: args.admin,
-        eventId: args.eventId,
-        actionId: execution.action.id,
-        status: 'failed',
-        attempts: 0,
-        lastError: 'CTA DM failed',
-      })
-      continue
-    }
-
+    const dmCount = (args.actionsByAutomation.get(execution.automationId) ?? []).filter((a) => a.type === 'dm').length
+    const automationConfig = args.automations.find((a) => a.id === execution.automationId)
+    const shouldGate = execution.action.type === 'dm' && (dmCount > 1 || Boolean(automationConfig?.dm_cta_enabled))
     if (shouldGate) {
-      await markExecutionStatus({
-        admin: args.admin,
-        eventId: args.eventId,
-        actionId: execution.action.id,
-        status: 'awaiting_cta',
-        attempts: 0,
-        lastError: null,
-      })
       continue
     }
 
@@ -551,65 +507,12 @@ async function processExecutions(args: {
         if (!args.connection.ig_user_id) {
           throw new Error('Missing sender ig_user_id on connection (run resolve-connection)')
         }
-        const total = dmCountsByAutomation.get(execution.automationId) ?? 0
-        const shouldAttachCta =
-          total > 1 && gatedDmActionByAutomation.get(execution.automationId) === execution.action.id
-        const ctaText = execution.action.cta_text?.trim() || 'Send me the rest'
-        const quickReplies = shouldAttachCta
-          ? [
-              {
-                title: ctaText,
-                payload: buildQuickReplyPayload({
-                  eventId: args.eventId,
-                  automationId: execution.automationId,
-                  actionId: execution.action.id,
-                  recipientId: args.parsed.fromId,
-                }),
-              },
-            ]
-          : undefined
         await sendDm({
           accessToken,
           senderIgUserId: args.connection.ig_user_id,
           commentId: args.parsed.commentId,
           message: messageText,
-          quickReplies,
         })
-
-        if (shouldAttachCta && !awaitingStatusByAutomation.has(execution.automationId)) {
-          const payload = buildQuickReplyPayload({
-            eventId: args.eventId,
-            automationId: execution.automationId,
-            actionId: execution.action.id,
-            recipientId: args.parsed.fromId,
-          })
-          const ctaStatus = args.parsed.fromId ? 'pending' : 'failed'
-          await args.admin.from('automation_cta_sessions').insert({
-            event_id: args.eventId,
-            automation_id: execution.automationId,
-            connection_id: args.connection.id,
-            recipient_ig_user_id: args.parsed.fromId,
-            payload,
-            status: ctaStatus,
-          })
-
-          const awaitingStatus = args.parsed.fromId ? 'awaiting_cta' : 'failed'
-          const awaitingError = args.parsed.fromId ? null : 'Missing recipient id for CTA'
-          for (const other of executions) {
-            if (other.automationId !== execution.automationId) continue
-            if (other.action.type !== 'dm') continue
-            if (other.action.id === execution.action.id) continue
-            await markExecutionStatus({
-              admin: args.admin,
-              eventId: args.eventId,
-              actionId: other.action.id,
-              status: awaitingStatus,
-              attempts: 0,
-              lastError: awaitingError,
-            })
-          }
-          awaitingStatusByAutomation.add(execution.automationId)
-        }
       }
 
       if (!shouldGate) {
@@ -660,6 +563,62 @@ async function processExecutions(args: {
       } else {
         console.error('Execution failed', error)
       }
+    }
+  }
+
+  for (const automation of args.automations) {
+    const actions = args.actionsByAutomation.get(automation.id) ?? []
+    const dmActions = actions.filter((action) => action.type === 'dm')
+    const shouldGate = dmActions.length > 1 || automation.dm_cta_enabled
+    if (!shouldGate || dmActions.length === 0) continue
+
+    const ctaGreeting = automation.dm_cta_greeting?.trim() || 'Thanks for your comment! Tap below to receive the messages.'
+    const ctaText = automation.dm_cta_text?.trim() || 'Send me the rest'
+    const payload = buildQuickReplyPayload({
+      eventId: args.eventId,
+      automationId: automation.id,
+      actionId: dmActions[0]?.id ?? 'none',
+      recipientId: args.parsed.fromId,
+    })
+
+    if (!args.connection.ig_user_id) continue
+    const ctaStatus = args.parsed.fromId ? 'pending' : 'failed'
+    const { data: ctaRow, error: ctaError } = await args.admin
+      .from('automation_cta_sessions')
+      .upsert({
+        event_id: args.eventId,
+        automation_id: automation.id,
+        connection_id: args.connection.id,
+        recipient_ig_user_id: args.parsed.fromId,
+        payload,
+        status: ctaStatus,
+      }, {
+        onConflict: 'event_id,automation_id',
+      })
+      .select('id')
+      .maybeSingle()
+
+    if (!ctaError && ctaRow) {
+      await sendDm({
+        accessToken,
+        senderIgUserId: args.connection.ig_user_id,
+        commentId: args.parsed.commentId,
+        message: ctaGreeting,
+        quickReplies: [{ title: ctaText, payload }],
+      })
+    }
+
+    const awaitingStatus = args.parsed.fromId ? 'awaiting_cta' : 'failed'
+    const awaitingError = args.parsed.fromId ? null : 'Missing recipient id for CTA'
+    for (const action of dmActions) {
+      await markExecutionStatus({
+        admin: args.admin,
+        eventId: args.eventId,
+        actionId: action.id,
+        status: awaitingStatus,
+        attempts: 0,
+        lastError: awaitingError,
+      })
     }
   }
 
@@ -775,7 +734,6 @@ Deno.serve(async (req) => {
       .select('id, event_id, automation_id, connection_id, status, recipient_ig_user_id')
       .eq('event_id', cta.eventId)
       .eq('automation_id', cta.automationId)
-      .eq('payload', payloadString)
       .maybeSingle()
 
     if (ctaError || !ctaSession) {
@@ -793,11 +751,16 @@ Deno.serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', ctaSession.id)
       .eq('status', 'pending')
-      .select('id')
+      .select('id, payload')
       .maybeSingle()
 
     if (claimError || !claimedCta) {
       console.info('CTA interaction ignored', { reason: 'cta-already-claimed' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    if (claimedCta.payload && claimedCta.payload !== payloadString) {
+      console.info('CTA interaction ignored', { reason: 'cta-payload-mismatch' })
       return jsonResponse({ ok: true }, 200, req)
     }
 
@@ -838,8 +801,7 @@ Deno.serve(async (req) => {
     }
 
     const dmActions = (actions ?? []).filter((action) => action.type === 'dm') as ActionRow[]
-    const gateIndex = dmActions.findIndex((action) => action.id === cta.actionId)
-    const remaining = gateIndex >= 0 ? dmActions.slice(gateIndex + 1) : []
+    const remaining = dmActions
 
     for (const action of remaining) {
       if (!action.template.trim()) continue
@@ -921,7 +883,7 @@ Deno.serve(async (req) => {
 
   const { data: automations, error: automationError } = await admin
     .from('automations')
-    .select('id, owner_user_id, connection_id')
+    .select('id, owner_user_id, connection_id, dm_cta_text, dm_cta_greeting, dm_cta_enabled')
     .eq('ig_post_id', parsed.igPostId)
     .eq('enabled', true)
 
