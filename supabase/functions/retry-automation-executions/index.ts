@@ -198,6 +198,27 @@ Deno.serve(async (req) => {
     actionsById.set(action.id, action as ActionRow)
   }
 
+  const replyActionsByAutomation = new Map<string, ActionRow[]>()
+  for (const action of actionsRes.data ?? []) {
+    const actionRow = action as ActionRow
+    if (actionRow.type !== 'reply') continue
+    const list = replyActionsByAutomation.get(actionRow.automation_id) ?? []
+    list.push(actionRow)
+    replyActionsByAutomation.set(actionRow.automation_id, list)
+  }
+
+  const replyTemplatesByAutomation = new Map<string, string[]>()
+  for (const [automationId, replyActions] of replyActionsByAutomation.entries()) {
+    const sorted = [...replyActions].sort((a, b) => {
+      const orderDiff = (a.sort_order ?? 0) - (b.sort_order ?? 0)
+      return orderDiff !== 0 ? orderDiff : a.created_at.localeCompare(b.created_at)
+    })
+    replyTemplatesByAutomation.set(
+      automationId,
+      sorted.map((action) => action.template.trim()).filter(Boolean),
+    )
+  }
+
   const eventsById = new Map<string, EventRow>()
   for (const event of eventsRes.data ?? []) {
     eventsById.set(event.id, event as EventRow)
@@ -290,8 +311,10 @@ Deno.serve(async (req) => {
     if (!messageText) {
       const template = action.template.trim()
       if (useAi) {
+        const replyTemplates = replyTemplatesByAutomation.get(execution.automation_id) ?? []
         const aiResult = await generateGeminiVariant({
           baseMessage: template,
+          baseMessages: replyTemplates,
           commentText: parsed.commentText,
         })
         aiError = aiResult.error

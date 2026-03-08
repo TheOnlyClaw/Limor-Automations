@@ -183,7 +183,7 @@ export function DashboardPage({
               pattern: base.pattern,
               flags: base.flags,
               replyEnabled: base.replyEnabled,
-              replyTemplate: base.replyTemplate,
+              replyTemplates: base.replyTemplates,
               replyUseAi: base.replyUseAi,
               dmEnabled: base.dmEnabled,
               dmTemplates: base.dmTemplates,
@@ -214,7 +214,7 @@ export function DashboardPage({
             pattern: base.pattern,
             flags: base.flags,
             replyEnabled: base.replyEnabled,
-            replyTemplate: base.replyTemplate,
+            replyTemplates: base.replyTemplates,
             replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
             dmTemplates: base.dmTemplates,
@@ -363,14 +363,27 @@ export function DashboardPage({
       return
     }
 
-    if (draft.replyEnabled && !draft.replyTemplate.trim()) {
-      setListenerDraftsByPostId((m) => ({
-        ...m,
-        [postId]: m[postId]
-          ? { ...m[postId]!, error: 'Reply message is enabled but empty' }
-          : m[postId],
-      }))
-      return
+    if (draft.replyEnabled) {
+      const replyMessages = draft.replyTemplates.map((template) => template.trim())
+      if (replyMessages.length === 0 || replyMessages.every((message) => !message)) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'Reply message is enabled but empty' }
+            : m[postId],
+        }))
+        return
+      }
+
+      if (replyMessages.some((message) => !message)) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'Fill or remove empty reply tabs' }
+            : m[postId],
+        }))
+        return
+      }
     }
 
     if (draft.dmEnabled) {
@@ -829,14 +842,47 @@ export function DashboardPage({
               : m[configPostId],
           }))
         }}
-        onChangeReplyTemplate={(replyTemplate) => {
+        onChangeReplyTemplate={(index, replyTemplate) => {
           if (!configPostId) return
           setListenerDraftsByPostId((m) => ({
             ...m,
             [configPostId]: m[configPostId]
               ? {
                   ...m[configPostId]!,
-                  replyTemplate,
+                  replyTemplates: m[configPostId]!.replyTemplates.map((template, i) =>
+                    i === index ? replyTemplate : template,
+                  ),
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onAddReplyTemplate={() => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  replyTemplates: [...m[configPostId]!.replyTemplates, ''],
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onRemoveReplyTemplate={(index) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  replyTemplates:
+                    m[configPostId]!.replyTemplates.length > 1
+                      ? m[configPostId]!.replyTemplates.filter((_, i) => i !== index)
+                      : [''],
                   dirty: true,
                   error: null,
                 }

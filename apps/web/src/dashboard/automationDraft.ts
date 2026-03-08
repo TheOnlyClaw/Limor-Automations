@@ -6,7 +6,7 @@ export type AutomationDraft = {
   pattern: string
   flags: string
   replyEnabled: boolean
-  replyTemplate: string
+  replyTemplates: string[]
   replyUseAi: boolean
   dmEnabled: boolean
   dmTemplates: string[]
@@ -26,7 +26,7 @@ export function automationToDraftFields(
   | 'pattern'
   | 'flags'
   | 'replyEnabled'
-  | 'replyTemplate'
+  | 'replyTemplates'
   | 'replyUseAi'
   | 'dmEnabled'
   | 'dmTemplates'
@@ -35,22 +35,24 @@ export function automationToDraftFields(
   | 'dmCtaEnabled'
 > {
   const firstRule = a?.rules?.[0]
-  const replyAction = a?.actions?.find((x) => x.type === 'reply')
+  const replyActions = a?.actions?.filter((x) => x.type === 'reply') ?? []
   const dmActions = a?.actions?.filter((x) => x.type === 'dm') ?? []
-  const replyTemplate = replyAction?.template ?? ''
+  const replyTemplates = replyActions.length ? replyActions.map((action) => action.template) : ['']
   const dmTemplates = dmActions.length ? dmActions.map((action) => action.template) : ['']
+  const replyEnabled = replyTemplates.some((template) => template.trim().length > 0)
   const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
   const dmCtaText = a?.dmCtaText ?? ''
   const dmCtaGreeting = a?.dmCtaGreeting ?? ''
   const dmCtaEnabled = Boolean(a?.dmCtaEnabled)
+  const replyUseAi = replyActions.some((action) => Boolean(action.useAi))
 
   return {
     enabled: Boolean(a?.enabled),
     pattern: firstRule?.pattern ?? '',
     flags: firstRule?.flags ?? '',
-    replyEnabled: replyTemplate.trim().length > 0,
-    replyTemplate,
-    replyUseAi: Boolean(replyAction?.useAi),
+    replyEnabled,
+    replyTemplates,
+    replyUseAi,
     dmEnabled,
     dmTemplates,
     dmCtaText,
@@ -65,13 +67,16 @@ export function draftToRulesActions(draft: AutomationDraft): {
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
+  const replyMessages = draft.replyTemplates.map((template) => template.trim()).filter(Boolean)
   const dmMessages = draft.dmTemplates.map((template) => template.trim()).filter(Boolean)
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
   const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean }> = []
   if (draft.replyEnabled) {
-    actions.push({ type: 'reply', template: draft.replyTemplate.trim(), useAi: draft.replyUseAi })
+    replyMessages.forEach((message) => {
+      actions.push({ type: 'reply', template: message, useAi: draft.replyUseAi })
+    })
   }
   if (draft.dmEnabled) {
     dmMessages.forEach((message) => {

@@ -355,6 +355,23 @@ function extractQuickReplyPayload(payload: unknown): { payload: string; senderId
   }
 }
 
+async function pickReplyAction(args: {
+  actions: ActionRow[]
+  eventId: string
+  automationId: string
+}): Promise<ActionRow | null> {
+  const replyActions = args.actions.filter((action) => action.type === 'reply' && action.template.trim())
+  if (replyActions.length === 0) return null
+  if (replyActions.length === 1) return replyActions[0]
+
+  const hash = await sha256Hex(`${args.eventId}:${args.automationId}`)
+  const hashInt = Number.parseInt(hash.slice(0, 8), 16)
+  const index = Number.isFinite(hashInt) && replyActions.length > 0
+    ? hashInt % replyActions.length
+    : 0
+  return replyActions[index] ?? replyActions[0] ?? null
+}
+
 async function processExecutions(args: {
   admin: ReturnType<typeof createAdminClient>
   eventId: string
@@ -374,8 +391,16 @@ async function processExecutions(args: {
     const rules = args.rulesByAutomation.get(automation.id) ?? []
     const actions = args.actionsByAutomation.get(automation.id) ?? []
     const matched = rulesMatch(rules, args.parsed.commentText)
+    const selectedReply = await pickReplyAction({
+      actions,
+      eventId: args.eventId,
+      automationId: automation.id,
+    })
 
     for (const action of actions) {
+      if (action.type === 'reply') {
+        if (!selectedReply || action.id !== selectedReply.id) continue
+      }
       executions.push({ automationId: automation.id, action, matched })
     }
   }
@@ -473,8 +498,13 @@ async function processExecutions(args: {
 
     const useAi = execution.action.type === 'reply' && execution.action.use_ai
     if (useAi) {
+      const replyTemplates = (args.actionsByAutomation.get(execution.automationId) ?? [])
+        .filter((action) => action.type === 'reply')
+        .map((action) => action.template.trim())
+        .filter(Boolean)
       const aiResult = await generateGeminiVariant({
         baseMessage: template,
+        baseMessages: replyTemplates,
         commentText: args.parsed.commentText,
       })
       aiError = aiResult.error

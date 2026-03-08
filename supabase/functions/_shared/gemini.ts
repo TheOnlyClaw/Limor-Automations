@@ -24,27 +24,42 @@ export type GeminiVariantResult = {
   latencyMs: number
 }
 
-const promptVersion = 'v1'
+const promptVersion = 'v2'
 
 function geminiModel() {
   return Deno.env.get('GEMINI_MODEL') ?? 'gemini-2.5-flash'
 }
 
-function buildPrompt(baseMessage: string, commentText: string) {
-  const base = baseMessage.trim()
-  const comment = commentText.trim().slice(0, 500)
+function buildPrompt(args: {
+  baseMessage: string
+  baseMessages: string[]
+  commentText: string
+}) {
+  const base = args.baseMessage.trim().slice(0, 500)
+  const comment = args.commentText.trim().slice(0, 500)
+  const uniqueExamples: string[] = []
+  for (const message of args.baseMessages) {
+    const trimmed = message.trim().slice(0, 500)
+    if (!trimmed) continue
+    if (!uniqueExamples.includes(trimmed)) uniqueExamples.push(trimmed)
+  }
+  const otherExamples = uniqueExamples.filter((message) => message !== base)
 
   return [
-    'Rewrite the BASE MESSAGE as a natural variation.',
+    'Rewrite the SELECTED BASE MESSAGE as a natural variation.',
     'Constraints:',
     '- Preserve the exact meaning and commitments.',
     '- Keep the same language and tone intensity.',
     '- Do not add new facts, promises, or calls to action.',
+    '- Use OTHER EXAMPLES only for style guidance.',
     '- Do not quote or mention the comment unless the base message already does.',
     '- Output a single message only, no quotes, no markdown.',
     '',
-    'BASE MESSAGE:',
+    'SELECTED BASE MESSAGE:',
     base,
+    '',
+    'OTHER EXAMPLES:',
+    otherExamples.length ? otherExamples.map((message) => `- ${message}`).join('\n') : '(none)',
     '',
     'COMMENT (context only):',
     comment.length ? comment : '(none)',
@@ -59,6 +74,7 @@ function parseGeminiText(data: GeminiResponse | null) {
 
 export async function generateGeminiVariant(args: {
   baseMessage: string
+  baseMessages?: string[]
   commentText: string
 }): Promise<GeminiVariantResult> {
   const model = geminiModel()
@@ -74,7 +90,14 @@ export async function generateGeminiVariant(args: {
     }
   }
 
-  const prompt = buildPrompt(args.baseMessage, args.commentText)
+  const baseMessages = args.baseMessages && args.baseMessages.length
+    ? args.baseMessages
+    : [args.baseMessage]
+  const prompt = buildPrompt({
+    baseMessage: args.baseMessage,
+    baseMessages,
+    commentText: args.commentText,
+  })
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 10_000)
   const startedAt = Date.now()

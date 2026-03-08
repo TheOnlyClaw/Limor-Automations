@@ -23,6 +23,8 @@ export function AutomationDialog({
   onToggleReply,
   onToggleReplyUseAi,
   onChangeReplyTemplate,
+  onAddReplyTemplate,
+  onRemoveReplyTemplate,
   onToggleDm,
   onChangeDmTemplate,
   onAddDmTemplate,
@@ -42,7 +44,9 @@ export function AutomationDialog({
   onChangeFlags: (flags: string) => void
   onToggleReply: (enabled: boolean) => void
   onToggleReplyUseAi: (enabled: boolean) => void
-  onChangeReplyTemplate: (template: string) => void
+  onChangeReplyTemplate: (index: number, template: string) => void
+  onAddReplyTemplate: () => void
+  onRemoveReplyTemplate: (index: number) => void
   onToggleDm: (enabled: boolean) => void
   onChangeDmTemplate: (index: number, template: string) => void
   onAddDmTemplate: () => void
@@ -54,6 +58,7 @@ export function AutomationDialog({
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [dmTab, setDmTab] = useState(0)
+  const [replyTab, setReplyTab] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -69,6 +74,9 @@ export function AutomationDialog({
 
   const rulesCount = automation?.rules?.length ?? 0
   const actionsCount = automation?.actions?.length ?? 0
+  const replyTemplates = draft.replyTemplates.length ? draft.replyTemplates : ['']
+  const safeReplyTab = Math.min(replyTab, replyTemplates.length - 1)
+  const activeReplyTemplate = replyTemplates[safeReplyTab] ?? ''
   const dmTemplates = draft.dmTemplates.length ? draft.dmTemplates : ['']
   const safeDmTab = Math.min(dmTab, dmTemplates.length - 1)
   const activeDmTemplate = dmTemplates[safeDmTab] ?? ''
@@ -112,11 +120,11 @@ export function AutomationDialog({
 
           <div className="max-h-[80vh] overflow-auto px-5 py-4">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {([
-                { id: 1, label: 'Pattern' },
-                { id: 2, label: 'DM messages' },
-                { id: 3, label: 'Reply message' },
-              ] as const).map((item) => {
+                {([
+                  { id: 1, label: 'Pattern' },
+                  { id: 2, label: 'DM messages' },
+                  { id: 3, label: 'Reply messages' },
+                ] as const).map((item) => {
                 const isActive = step === item.id
                 const isComplete = step > item.id
                 return (
@@ -314,10 +322,13 @@ export function AutomationDialog({
               <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-medium text-zinc-50">Reply message</div>
+                    <div className="text-sm font-medium text-zinc-50">Reply messages</div>
                     <div className="mt-1 text-xs text-zinc-500">
+                      One reply is chosen at random per comment.
+                    </div>
+                    <div className="text-xs text-zinc-500">
                       {draft.replyUseAi
-                        ? 'AI will paraphrase this base message before sending.'
+                        ? 'AI will paraphrase the selected base message before sending.'
                         : 'Optional. Reply publicly on the comment.'}
                     </div>
                   </div>
@@ -342,16 +353,65 @@ export function AutomationDialog({
                     disabled={!draft.replyEnabled}
                   />
                 </label>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {replyTemplates.map((_, index) => {
+                    const isActive = replyTab === index
+                    return (
+                      <button
+                        key={`reply-tab-${index}`}
+                        type="button"
+                        onClick={() => setReplyTab(index)}
+                        disabled={!draft.replyEnabled}
+                        aria-current={isActive ? 'true' : undefined}
+                        className={
+                          isActive
+                            ? 'rounded-full border border-white/30 bg-white px-3 py-1 text-[11px] font-semibold text-zinc-950'
+                            : 'rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-60'
+                        }
+                      >
+                        Reply {index + 1}
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!draft.replyEnabled) return
+                      setReplyTab(replyTemplates.length)
+                      onAddReplyTemplate()
+                    }}
+                    disabled={!draft.replyEnabled}
+                    className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-300 hover:text-zinc-50 disabled:opacity-60"
+                  >
+                    + Add reply
+                  </button>
+                  {replyTemplates.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!draft.replyEnabled) return
+                        const nextIndex =
+                          safeReplyTab === replyTemplates.length - 1 ? safeReplyTab - 1 : safeReplyTab
+                        setReplyTab(Math.max(0, nextIndex))
+                        onRemoveReplyTemplate(safeReplyTab)
+                      }}
+                      disabled={!draft.replyEnabled}
+                      className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-60"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
                 <textarea
                   className="mt-3 w-full resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
                   dir="rtl"
                   rows={5}
-                  value={draft.replyTemplate}
-                  onChange={(e) => onChangeReplyTemplate(e.target.value)}
+                  value={activeReplyTemplate}
+                  onChange={(e) => onChangeReplyTemplate(safeReplyTab, e.target.value)}
                   placeholder={draft.replyUseAi ? 'Base public reply message' : 'Your public reply message'}
                   disabled={!draft.replyEnabled}
                 />
-                <div className="mt-2 text-xs text-zinc-500">Empty messages can’t be saved.</div>
+                <div className="mt-2 text-xs text-zinc-500">Fill or remove empty reply tabs.</div>
               </div>
             ) : null}
 

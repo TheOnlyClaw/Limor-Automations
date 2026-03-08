@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ status: 'skipped' }, 200, req)
     }
 
-    const [automationRes, actionRes] = await Promise.all([
+    const [automationRes, actionRes, replyActionsRes] = await Promise.all([
       admin
         .from('automations')
         .select('id, connection_id')
@@ -178,6 +178,13 @@ Deno.serve(async (req) => {
         .select('id, automation_id, type, template, use_ai, sort_order, created_at')
         .eq('id', executionRow.action_id)
         .maybeSingle(),
+      admin
+        .from('automation_actions')
+        .select('id, automation_id, type, template, use_ai, sort_order, created_at')
+        .eq('automation_id', executionRow.automation_id)
+        .eq('type', 'reply')
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
     ])
 
     if (automationRes.error) {
@@ -188,6 +195,10 @@ Deno.serve(async (req) => {
     if (actionRes.error) {
       console.error('Failed to load action for retry', actionRes.error)
       return errorResponse(500, 'Unable to retry execution', req)
+    }
+
+    if (replyActionsRes.error) {
+      console.error('Failed to load reply actions for retry', replyActionsRes.error)
     }
 
     if (!automationRes.data) {
@@ -218,6 +229,9 @@ Deno.serve(async (req) => {
 
     const action = actionRes.data as ActionRow
     const automation = automationRes.data as AutomationRow
+    const replyTemplates = (replyActionsRes.data ?? [])
+      .map((item) => (item as ActionRow).template.trim())
+      .filter(Boolean)
 
     const { data: connection, error: connectionError } = await admin
       .from('instagram_connections')
@@ -255,6 +269,7 @@ Deno.serve(async (req) => {
       if (useAi) {
         const aiResult = await generateGeminiVariant({
           baseMessage: template,
+          baseMessages: replyTemplates,
           commentText: parsed.commentText,
         })
         aiError = aiResult.error
