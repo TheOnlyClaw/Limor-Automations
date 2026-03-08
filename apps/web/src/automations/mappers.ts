@@ -12,6 +12,7 @@ export type AutomationAction = {
   type: 'reply' | 'dm'
   template: string
   useAi: boolean
+  ctaText: string | null
   sortOrder: number
   createdAt: string
 }
@@ -61,6 +62,7 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     type: toActionType(action.type),
     template: action.template,
     useAi: Boolean(action.use_ai),
+    ctaText: action.cta_text ?? null,
     sortOrder: action.sort_order ?? 0,
     createdAt: action.created_at,
   }))

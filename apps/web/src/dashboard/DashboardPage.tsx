@@ -4,12 +4,18 @@ import { listInstagramConnections } from '../connections/connectionsApi'
 import type { InstagramConnection } from '../connections/types'
 import { listInstagramPosts, type InstagramPost } from './instagramPostsApi'
 import {
+  listFailedExecutions,
+  retryFailedExecution,
+  type FailedExecution,
+} from './failedExecutionsApi'
+import {
   createPostAutomation,
   listPostAutomations,
   patchPostAutomation,
   type PostAutomation,
 } from './automationsApi'
 import { AutomationDialog } from './AutomationDialog'
+import { FailedExecutionsDialog } from './FailedExecutionsDialog'
 import {
   automationToDraftFields,
   draftToRulesActions,
@@ -62,6 +68,13 @@ export function DashboardPage({
   const [automationByPostId, setAutomationByPostId] = useState<Record<string, PostAutomation | undefined>>({})
   const [listenerDraftsByPostId, setListenerDraftsByPostId] = useState<Record<string, ListenerDraft | undefined>>({})
   const [configPostId, setConfigPostId] = useState<string | null>(null)
+
+  const [failedExecutionsByPostId, setFailedExecutionsByPostId] = useState<Record<string, FailedExecution[]>>({})
+  const [failedExecutionsLoadingByPostId, setFailedExecutionsLoadingByPostId] = useState<Record<string, boolean>>({})
+  const [failedExecutionsErrorByPostId, setFailedExecutionsErrorByPostId] = useState<Record<string, string | null>>({})
+  const [failedExecutionsLoadedByPostId, setFailedExecutionsLoadedByPostId] = useState<Record<string, boolean>>({})
+  const [failedExecutionsPostId, setFailedExecutionsPostId] = useState<string | null>(null)
+  const [failedExecutionsRetryState, setFailedExecutionsRetryState] = useState<Record<string, 'idle' | 'retrying' | 'failed'>>({})
 
   const connectionById = useMemo(() => {
     const m: Record<string, InstagramConnection> = {}
@@ -147,6 +160,12 @@ export function DashboardPage({
     void loadAutomations(connectionId)
     setListenerDraftsByPostId({})
     setConfigPostId(null)
+    setFailedExecutionsByPostId({})
+    setFailedExecutionsLoadingByPostId({})
+    setFailedExecutionsErrorByPostId({})
+    setFailedExecutionsLoadedByPostId({})
+    setFailedExecutionsPostId(null)
+    setFailedExecutionsRetryState({})
   }, [connectionId, loadAutomations, loadPosts])
 
   useEffect(() => {
@@ -156,22 +175,23 @@ export function DashboardPage({
       for (const p of posts) {
         const existing = prev[p.id]
         const a = automationByPostId[p.id]
-        if (!existing) {
-          const base = automationToDraftFields(a)
-          next[p.id] = {
-            automationId: a?.id ?? null,
-            enabled: base.enabled,
-            pattern: base.pattern,
-            flags: base.flags,
-            replyEnabled: base.replyEnabled,
-            replyTemplate: base.replyTemplate,
-            replyUseAi: base.replyUseAi,
-            dmEnabled: base.dmEnabled,
-            dmTemplates: base.dmTemplates,
-            dirty: false,
-            saving: false,
-            error: null,
-          }
+          if (!existing) {
+            const base = automationToDraftFields(a)
+            next[p.id] = {
+              automationId: a?.id ?? null,
+              enabled: base.enabled,
+              pattern: base.pattern,
+              flags: base.flags,
+              replyEnabled: base.replyEnabled,
+              replyTemplate: base.replyTemplate,
+              replyUseAi: base.replyUseAi,
+              dmEnabled: base.dmEnabled,
+              dmTemplates: base.dmTemplates,
+              dmCtaText: base.dmCtaText,
+              dirty: false,
+              saving: false,
+              error: null,
+            }
           continue
         }
 
@@ -196,6 +216,7 @@ export function DashboardPage({
             replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
             dmTemplates: base.dmTemplates,
+            dmCtaText: base.dmCtaText,
             error: null,
           }
         }
@@ -204,7 +225,124 @@ export function DashboardPage({
     })
   }, [automationByPostId, posts])
 
+  const loadFailedExecutions = useCallback(async (postId: string) => {
+    setFailedExecutionsLoadingByPostId((prev) => ({ ...prev, [postId]: true }))
+    setFailedExecutionsErrorByPostId((prev) => ({ ...prev, [postId]: null }))
+
+    try {
+      const res = await listFailedExecutions({ postId })
+      setFailedExecutionsByPostId((prev) => ({ ...prev, [postId]: res.items }))
+      setFailedExecutionsLoadedByPostId((prev) => ({ ...prev, [postId]: true }))
+    } catch (error) {
+      const msg =
+        error instanceof ApiError
+          ? `HTTP ${error.status}: ${error.message}`
+          : error instanceof Error
+            ? error.message
+            : 'Unable to load failed executions'
+      setFailedExecutionsErrorByPostId((prev) => ({ ...prev, [postId]: msg }))
+      setFailedExecutionsByPostId((prev) => ({ ...prev, [postId]: [] }))
+      setFailedExecutionsLoadedByPostId((prev) => ({ ...prev, [postId]: true }))
+    } finally {
+      setFailedExecutionsLoadingByPostId((prev) => ({ ...prev, [postId]: false }))
+    }
+  }, [])
+
+  const loadFailedExecutionsForPosts = useCallback(async (items: InstagramPost[]) => {
+    const pending = items.filter((item) => !failedExecutionsLoadedByPostId[item.id])
+    if (pending.length === 0) return
+
+    setFailedExecutionsLoadingByPostId((prev) => {
+      const next = { ...prev }
+      for (const item of pending) next[item.id] = true
+      return next
+    })
+
+    setFailedExecutionsErrorByPostId((prev) => {
+      const next = { ...prev }
+      for (const item of pending) next[item.id] = null
+      return next
+    })
+
+    const results = await Promise.allSettled(
+      pending.map((item) => listFailedExecutions({ postId: item.id })),
+    )
+
+    setFailedExecutionsByPostId((prev) => {
+      const next = { ...prev }
+      results.forEach((result, index) => {
+        const postId = pending[index].id
+        if (result.status === 'fulfilled') {
+          next[postId] = result.value.items
+        } else {
+          next[postId] = []
+        }
+      })
+      return next
+    })
+
+    setFailedExecutionsErrorByPostId((prev) => {
+      const next = { ...prev }
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const reason = result.reason
+          const msg =
+            reason instanceof ApiError
+              ? `HTTP ${reason.status}: ${reason.message}`
+              : reason instanceof Error
+                ? reason.message
+                : 'Unable to load failed executions'
+          next[pending[index].id] = msg
+        }
+      })
+      return next
+    })
+
+    setFailedExecutionsLoadedByPostId((prev) => {
+      const next = { ...prev }
+      for (const item of pending) next[item.id] = true
+      return next
+    })
+
+    setFailedExecutionsLoadingByPostId((prev) => {
+      const next = { ...prev }
+      for (const item of pending) next[item.id] = false
+      return next
+    })
+  }, [failedExecutionsLoadedByPostId])
+
   const activeConnection = connectionId ? connectionById[connectionId] : null
+
+  useEffect(() => {
+    if (!connectionId || posts.length === 0) return
+    void loadFailedExecutionsForPosts(posts)
+  }, [connectionId, loadFailedExecutionsForPosts, posts])
+
+  const onRetryFailedExecution = useCallback(async (postId: string, executionId: string) => {
+    setFailedExecutionsRetryState((prev) => ({ ...prev, [executionId]: 'retrying' }))
+    try {
+      const res = await retryFailedExecution({ executionId })
+      if (res.status === 'succeeded') {
+        setFailedExecutionsByPostId((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] ?? []).filter((item) => item.id !== executionId),
+        }))
+        setFailedExecutionsRetryState((prev) => ({ ...prev, [executionId]: 'idle' }))
+        return
+      }
+
+      setFailedExecutionsRetryState((prev) => ({ ...prev, [executionId]: 'failed' }))
+    } catch (error) {
+      setFailedExecutionsRetryState((prev) => ({ ...prev, [executionId]: 'failed' }))
+      const msg =
+        error instanceof ApiError
+          ? `HTTP ${error.status}: ${error.message}`
+          : error instanceof Error
+            ? error.message
+            : 'Retry failed'
+      setFailedExecutionsErrorByPostId((prev) => ({ ...prev, [postId]: msg }))
+    }
+  }, [])
 
   async function onSaveListener(postId: string) {
     if (!connectionId) return
@@ -256,8 +394,28 @@ export function DashboardPage({
       if (dmMessages.some((message) => message.length > 999)) {
         setListenerDraftsByPostId((m) => ({
           ...m,
+            [postId]: m[postId]
+              ? { ...m[postId]!, error: 'DM message exceeds 999 characters' }
+              : m[postId],
+        }))
+        return
+      }
+
+      if (dmMessages.length > 1 && !draft.dmCtaText.trim()) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
           [postId]: m[postId]
-            ? { ...m[postId]!, error: 'DM message exceeds 999 characters' }
+            ? { ...m[postId]!, error: 'CTA text is required for multiple DMs' }
+            : m[postId],
+        }))
+        return
+      }
+
+      if (draft.dmCtaText.trim().length > 20) {
+        setListenerDraftsByPostId((m) => ({
+          ...m,
+          [postId]: m[postId]
+            ? { ...m[postId]!, error: 'CTA text must be 20 characters or less' }
             : m[postId],
         }))
         return
@@ -467,6 +625,7 @@ export function DashboardPage({
                   ? 'disabled'
                   : 'off'
               : 'off'
+            const failedCount = failedExecutionsByPostId[p.id]?.length ?? 0
             return (
               <div
                 key={p.id}
@@ -536,15 +695,34 @@ export function DashboardPage({
                             ? 'Disabled'
                             : 'Not listening'}
                     </div>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-200 hover:bg-zinc-900"
-                      onClick={() => {
-                        setConfigPostId(p.id)
-                      }}
-                    >
-                      Configure
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="relative flex h-6 w-6 items-center justify-center rounded-full border border-red-700/60 bg-red-600/15 text-[12px] font-semibold text-red-200 hover:bg-red-600/25"
+                        onClick={() => {
+                          setFailedExecutionsPostId(p.id)
+                          void loadFailedExecutions(p.id)
+                        }}
+                        title={failedCount > 0 ? `${failedCount} failed executions` : 'Failed executions'}
+                        aria-label={failedCount > 0 ? `${failedCount} failed executions` : 'Failed executions'}
+                      >
+                        !
+                        {failedCount > 0 ? (
+                          <span className="absolute -right-1 -top-1 min-w-[14px] rounded-full bg-red-600 px-1 text-[9px] text-white">
+                            {failedCount}
+                          </span>
+                        ) : null}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-200 hover:bg-zinc-900"
+                        onClick={() => {
+                          setConfigPostId(p.id)
+                        }}
+                      >
+                        Configure
+                      </button>
+                    </div>
                   </div>
 
                   <div className="mt-2 truncate text-xs text-zinc-300" title={p.caption ?? ''}>
@@ -656,6 +834,7 @@ export function DashboardPage({
               ? {
                   ...m[configPostId]!,
                   dmEnabled,
+                  dmCtaText: dmEnabled ? m[configPostId]!.dmCtaText : '',
                   dirty: true,
                   error: null,
                 }
@@ -672,6 +851,7 @@ export function DashboardPage({
                   dmTemplates: m[configPostId]!.dmTemplates.map((template, i) =>
                     i === index ? dmTemplate : template,
                   ),
+                  dmCtaText: m[configPostId]!.dmCtaText,
                   dirty: true,
                   error: null,
                 }
@@ -686,6 +866,7 @@ export function DashboardPage({
               ? {
                   ...m[configPostId]!,
                   dmTemplates: [...m[configPostId]!.dmTemplates, ''],
+                  dmCtaText: m[configPostId]!.dmCtaText,
                   dirty: true,
                   error: null,
                 }
@@ -703,6 +884,21 @@ export function DashboardPage({
                     m[configPostId]!.dmTemplates.length > 1
                       ? m[configPostId]!.dmTemplates.filter((_, i) => i !== index)
                       : [''],
+                  dmCtaText: m[configPostId]!.dmCtaText,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onChangeDmCtaText={(dmCtaText) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmCtaText,
                   dirty: true,
                   error: null,
                 }
@@ -713,6 +909,19 @@ export function DashboardPage({
           if (!configPostId) return
           void onSaveListener(configPostId)
         }}
+      />
+
+      <FailedExecutionsDialog
+        open={Boolean(failedExecutionsPostId)}
+        loading={failedExecutionsPostId ? failedExecutionsLoadingByPostId[failedExecutionsPostId] ?? false : false}
+        error={failedExecutionsPostId ? failedExecutionsErrorByPostId[failedExecutionsPostId] ?? null : null}
+        executions={failedExecutionsPostId ? failedExecutionsByPostId[failedExecutionsPostId] ?? [] : []}
+        retryStateById={failedExecutionsRetryState}
+        onRetry={(executionId) => {
+          if (!failedExecutionsPostId) return
+          void onRetryFailedExecution(failedExecutionsPostId, executionId)
+        }}
+        onClose={() => setFailedExecutionsPostId(null)}
       />
     </section>
   )

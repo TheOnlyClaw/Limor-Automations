@@ -2,6 +2,7 @@ export type ParsedCommentEvent = {
   igPostId: string
   commentId: string
   fromId: string | null
+  fromUsername: string | null
   selfIgScopedId: string | null
   parentCommentId: string | null
   commentText: string
@@ -21,6 +22,8 @@ export function extractCommentEvent(payload: unknown): ParsedCommentEvent | null
   const igPostId = getString(value?.media_id) ?? getString((media as Record<string, unknown> | undefined)?.id)
   const commentId = getString(value?.id) ?? getString(value?.comment_id)
   const fromId = getString((from as Record<string, unknown> | undefined)?.id)
+  const fromUsername =
+    getString((from as Record<string, unknown> | undefined)?.username) ?? getString(value?.username)
   const selfIgScopedId =
     getString(value?.self_ig_scoped_id) ?? getString((from as Record<string, unknown> | undefined)?.self_ig_scoped_id)
   const parentCommentId = getString(value?.parent_id)
@@ -32,6 +35,7 @@ export function extractCommentEvent(payload: unknown): ParsedCommentEvent | null
     igPostId,
     commentId,
     fromId,
+    fromUsername,
     selfIgScopedId,
     parentCommentId,
     commentText,

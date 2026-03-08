@@ -10,6 +10,7 @@ export type AutomationDraft = {
   replyUseAi: boolean
   dmEnabled: boolean
   dmTemplates: string[]
+  dmCtaText: string
   dirty: boolean
   saving: boolean
   error: string | null
@@ -27,6 +28,7 @@ export function automationToDraftFields(
   | 'replyUseAi'
   | 'dmEnabled'
   | 'dmTemplates'
+  | 'dmCtaText'
 > {
   const firstRule = a?.rules?.[0]
   const replyAction = a?.actions?.find((x) => x.type === 'reply')
@@ -34,6 +36,7 @@ export function automationToDraftFields(
   const replyTemplate = replyAction?.template ?? ''
   const dmTemplates = dmActions.length ? dmActions.map((action) => action.template) : ['']
   const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
+  const dmCtaText = dmActions.length > 1 ? dmActions[0]?.ctaText ?? '' : ''
 
   return {
     enabled: Boolean(a?.enabled),
@@ -44,27 +47,37 @@ export function automationToDraftFields(
     replyUseAi: Boolean(replyAction?.useAi),
     dmEnabled,
     dmTemplates,
+    dmCtaText,
   }
 }
 
 export function draftToRulesActions(draft: AutomationDraft): {
   rules: Array<{ pattern: string; flags?: string }>
-  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean }>
+  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; ctaText?: string | null }>
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
   const dmMessages = draft.dmTemplates.map((template) => template.trim()).filter(Boolean)
+  const dmCtaText = draft.dmCtaText.trim()
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
-  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean }> = []
+  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; ctaText?: string | null }> = []
   if (draft.replyEnabled) {
     actions.push({ type: 'reply', template: draft.replyTemplate.trim(), useAi: draft.replyUseAi })
   }
   if (draft.dmEnabled) {
-    for (const message of dmMessages) {
-      actions.push({ type: 'dm', template: message, useAi: false })
-    }
+    dmMessages.forEach((message, index) => {
+      const action: { type: 'dm'; template: string; useAi: boolean; ctaText?: string | null } = {
+        type: 'dm',
+        template: message,
+        useAi: false,
+      }
+      if (dmMessages.length > 1 && index === 0) {
+        action.ctaText = dmCtaText.length ? dmCtaText : null
+      }
+      actions.push(action)
+    })
   }
 
   return { rules, actions }

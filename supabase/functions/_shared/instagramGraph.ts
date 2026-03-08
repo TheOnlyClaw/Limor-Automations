@@ -6,10 +6,12 @@ type GraphErrorPayload = {
 
 export class GraphError extends Error {
   status: number
+  payload: unknown | null
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, payload: unknown | null = null) {
     super(message)
     this.status = status
+    this.payload = payload
   }
 }
 
@@ -45,7 +47,11 @@ async function graphFetchJson<T>(url: string, init: RequestInit): Promise<T> {
   const data = parseJson(text)
 
   if (!res.ok) {
-    throw new GraphError(res.status, getGraphErrorMessage(data) ?? `Instagram request failed (${res.status})`)
+    throw new GraphError(
+      res.status,
+      getGraphErrorMessage(data) ?? `Instagram request failed (${res.status})`,
+      data,
+    )
   }
 
   return data as T

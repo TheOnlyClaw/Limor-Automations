@@ -27,6 +27,7 @@ export function AutomationDialog({
   onChangeDmTemplate,
   onAddDmTemplate,
   onRemoveDmTemplate,
+  onChangeDmCtaText,
   onSave,
 }: {
   open: boolean
@@ -44,6 +45,7 @@ export function AutomationDialog({
   onChangeDmTemplate: (index: number, template: string) => void
   onAddDmTemplate: () => void
   onRemoveDmTemplate: (index: number) => void
+  onChangeDmCtaText: (ctaText: string) => void
   onSave: () => void
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -66,6 +68,7 @@ export function AutomationDialog({
   const dmTemplates = draft.dmTemplates.length ? draft.dmTemplates : ['']
   const safeDmTab = Math.min(dmTab, dmTemplates.length - 1)
   const activeDmTemplate = dmTemplates[safeDmTab] ?? ''
+  const showDmCta = draft.dmEnabled && dmTemplates.filter((template) => template.trim().length > 0).length > 1
   const dmLimit = 999
 
   return (
@@ -256,6 +259,25 @@ export function AutomationDialog({
                     {activeDmTemplate.length}/{dmLimit}
                   </span>
                 </div>
+                {showDmCta ? (
+                  <div className="mt-4 grid gap-2 rounded-xl border border-amber-900/50 bg-amber-950/20 px-3 py-2">
+                    <div className="text-[11px] font-semibold text-amber-200">
+                      Private accounts require a tap to receive multiple DMs.
+                    </div>
+                    <label className="grid gap-1">
+                      <div className="text-[11px] text-amber-100/80">CTA button text</div>
+                      <input
+                        className="h-9 rounded-lg border border-amber-900/60 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-600 focus:outline-none"
+                        value={draft.dmCtaText}
+                        onChange={(e) => onChangeDmCtaText(e.target.value)}
+                        maxLength={20}
+                        placeholder="Send me the rest"
+                        disabled={!draft.dmEnabled}
+                      />
+                    </label>
+                    <div className="text-[11px] text-amber-200/80">Max 20 characters. Shown as an Instagram quick reply.</div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

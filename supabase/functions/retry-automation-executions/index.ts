@@ -17,7 +17,7 @@ type ExecutionRow = {
   action_type: 'reply' | 'dm'
   action_id: string
   attempts: number
-  status: 'queued' | 'failed' | 'skipped'
+  status: 'queued' | 'failed' | 'skipped' | 'succeeded' | 'awaiting_cta'
   updated_at: string
   message_text: string | null
   message_source: 'template' | 'ai' | null
@@ -132,6 +132,7 @@ Deno.serve(async (req) => {
   const nowMs = Date.now()
   const candidates = (rows ?? []).filter((row) => {
     if (row.status === 'queued') return true
+    if (row.status === 'awaiting_cta') return false
     if (row.attempts >= maxAttempts) return false
     const updatedMs = parseIsoMs(row.updated_at)
     if (updatedMs === null) return true
@@ -312,6 +313,7 @@ Deno.serve(async (req) => {
       }
     }
 
+
     if (!messageSource) {
       messageSource = useAi ? 'ai' : 'template'
     }
@@ -380,7 +382,17 @@ Deno.serve(async (req) => {
       })
       succeeded += 1
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Execution failed'
+      let message = error instanceof Error ? error.message : 'Execution failed'
+      if (message === 'Execution failed') {
+        message = 'Unknown error occurred'
+      }
+      if (error instanceof GraphError && error.payload) {
+        try {
+          message = `${message} | raw=${JSON.stringify(error.payload)}`
+        } catch {
+          message = `${message} | raw=[unserializable]`
+        }
+      }
       await markExecution({
         admin,
         executionId: execution.id,

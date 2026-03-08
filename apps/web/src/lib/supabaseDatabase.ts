@@ -17,6 +17,7 @@ export type Database = {
       automation_actions: {
         Row: {
           automation_id: string
+          cta_text: string | null
           created_at: string
           id: string
           sort_order: number
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           automation_id: string
+          cta_text?: string | null
           created_at?: string
           id?: string
           sort_order?: number
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           automation_id?: string
+          cta_text?: string | null
           created_at?: string
           id?: string
           sort_order?: number
@@ -69,6 +72,7 @@ export type Database = {
           message_source: string | null
           message_text: string | null
           owner_user_id: string
+          recipient_ig_user_id: string | null
           status: string
           updated_at: string
         }
@@ -88,6 +92,7 @@ export type Database = {
           message_source?: string | null
           message_text?: string | null
           owner_user_id: string
+          recipient_ig_user_id?: string | null
           status: string
           updated_at?: string
         }
@@ -107,6 +112,7 @@ export type Database = {
           message_source?: string | null
           message_text?: string | null
           owner_user_id?: string
+          recipient_ig_user_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -203,6 +209,64 @@ export type Database = {
             columns: ["connection_id"]
             isOneToOne: false
             referencedRelation: "instagram_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      automation_cta_sessions: {
+        Row: {
+          automation_id: string
+          completed_at: string | null
+          connection_id: string
+          created_at: string
+          event_id: string
+          id: string
+          payload: string
+          recipient_ig_user_id: string | null
+          status: string
+        }
+        Insert: {
+          automation_id: string
+          completed_at?: string | null
+          connection_id: string
+          created_at?: string
+          event_id: string
+          id?: string
+          payload: string
+          recipient_ig_user_id?: string | null
+          status?: string
+        }
+        Update: {
+          automation_id?: string
+          completed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          event_id?: string
+          id?: string
+          payload?: string
+          recipient_ig_user_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "automation_cta_sessions_automation_id_fkey"
+            columns: ["automation_id"]
+            isOneToOne: false
+            referencedRelation: "automations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_cta_sessions_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_cta_sessions_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "instagram_webhook_events"
             referencedColumns: ["id"]
           },
         ]

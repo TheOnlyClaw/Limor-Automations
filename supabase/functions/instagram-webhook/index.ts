@@ -2,7 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { corsHeaders, errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts'
 import { decryptString } from '../_shared/crypto.ts'
 import { generateGeminiVariant } from '../_shared/gemini.ts'
-import { sendCommentReply, sendDm } from '../_shared/instagramActions.ts'
+import { sendCommentReply, sendDm, sendRecipientDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
 import { extractCommentEvent, isReplyComment, isSelfComment, type ParsedCommentEvent } from '../_shared/webhook.ts'
@@ -32,7 +32,57 @@ type ActionRow = {
   template: string
   use_ai: boolean
   sort_order: number
+  cta_text: string | null
   created_at: string
+}
+
+type ExecutionInsertRow = {
+  owner_user_id: string
+  event_id: string
+  automation_id: string
+  action_type: 'reply' | 'dm'
+  action_id: string
+  status: 'queued' | 'skipped'
+  message_source: 'template' | 'ai' | null
+  message_text: string | null
+  recipient_ig_user_id: string | null
+}
+
+type QuickReplyPayload = {
+  v: 1
+  type: 'cta'
+  eventId: string
+  automationId: string
+  actionId: string
+  recipientId: string | null
+}
+
+function buildQuickReplyPayload(args: {
+  eventId: string
+  automationId: string
+  actionId: string
+  recipientId: string | null
+}) {
+  return JSON.stringify({
+    v: 1,
+    type: 'cta',
+    eventId: args.eventId,
+    automationId: args.automationId,
+    actionId: args.actionId,
+    recipientId: args.recipientId ?? null,
+  } satisfies QuickReplyPayload)
+}
+
+function parseQuickReplyPayload(raw: unknown): QuickReplyPayload | null {
+  if (typeof raw !== 'string' || !raw.trim()) return null
+  try {
+    const parsed = JSON.parse(raw) as QuickReplyPayload
+    if (parsed?.type !== 'cta') return null
+    if (!parsed.eventId || !parsed.automationId || !parsed.actionId) return null
+    return parsed
+  } catch {
+    return null
+  }
 }
 
 type ConnectionRow = {
@@ -244,7 +294,7 @@ async function markExecutionStatus(args: {
   admin: ReturnType<typeof createAdminClient>
   eventId: string
   actionId: string
-  status: 'succeeded' | 'failed'
+  status: 'succeeded' | 'failed' | 'awaiting_cta'
   attempts: number
   lastError: string | null
   messageText?: string | null
@@ -274,6 +324,34 @@ async function markExecutionStatus(args: {
     .eq('action_id', args.actionId)
 }
 
+function extractQuickReplyPayload(payload: unknown): { payload: string; senderId: string | null } | null {
+  if (!payload || typeof payload !== 'object') return null
+  const entry = (payload as { entry?: Array<Record<string, unknown>> })?.entry?.[0]
+  const messaging = Array.isArray(entry?.messaging) ? entry?.messaging?.[0] : null
+  if (!messaging || typeof messaging !== 'object') return null
+
+  const senderId =
+    typeof (messaging as Record<string, unknown>)?.sender === 'object'
+      ? ((messaging as Record<string, unknown>).sender as Record<string, unknown>)?.id
+      : null
+  const message =
+    typeof (messaging as Record<string, unknown>)?.message === 'object'
+      ? ((messaging as Record<string, unknown>).message as Record<string, unknown>)
+      : null
+  const quickReply =
+    message && typeof message.quick_reply === 'object'
+      ? (message.quick_reply as Record<string, unknown>)
+      : null
+  const rawPayload = quickReply?.payload
+
+  if (typeof rawPayload !== 'string' || !rawPayload.trim()) return null
+
+  return {
+    payload: rawPayload,
+    senderId: typeof senderId === 'string' ? senderId : null,
+  }
+}
+
 async function processExecutions(args: {
   admin: ReturnType<typeof createAdminClient>
   eventId: string
@@ -301,13 +379,16 @@ async function processExecutions(args: {
 
   if (executions.length === 0) return { matched: 0, attempted: 0, failed: 0 }
 
-  const rows = executions.map((execution) => ({
+  const rows: ExecutionInsertRow[] = executions.map((execution) => ({
     owner_user_id: args.connection.owner_user_id,
     event_id: args.eventId,
     automation_id: execution.automationId,
     action_type: execution.action.type,
     action_id: execution.action.id,
     status: execution.matched ? 'queued' : 'skipped',
+    message_source: null,
+    message_text: null,
+    recipient_ig_user_id: args.parsed.fromId,
   }))
 
   const { error: insertError } = await args.admin.from('automation_executions').upsert(rows, {
@@ -317,6 +398,15 @@ async function processExecutions(args: {
 
   if (insertError) {
     throw insertError
+  }
+
+  const { data: existingRows, error: existingError } = await args.admin
+    .from('automation_executions')
+    .select('action_id, status')
+    .eq('event_id', args.eventId)
+
+  if (existingError) {
+    throw existingError
   }
 
   let accessToken: string | null = null
@@ -342,7 +432,38 @@ async function processExecutions(args: {
   let attempted = 0
   let failed = 0
 
+  const dmCountsByAutomation = new Map<string, number>()
   for (const execution of executions) {
+    if (execution.action.type !== 'dm') continue
+    dmCountsByAutomation.set(
+      execution.automationId,
+      (dmCountsByAutomation.get(execution.automationId) ?? 0) + 1,
+    )
+  }
+
+  const gatedDmActionByAutomation = new Map<string, string | null>()
+  for (const execution of executions) {
+    if (execution.action.type !== 'dm') continue
+    const total = dmCountsByAutomation.get(execution.automationId) ?? 0
+    if (total < 2) continue
+    if (!gatedDmActionByAutomation.has(execution.automationId)) {
+      gatedDmActionByAutomation.set(execution.automationId, execution.action.id)
+    }
+  }
+
+  const existingByActionId = new Map<string, { status: string }>()
+  for (const row of (existingRows ?? []) as Array<{ action_id: string; status: string }>) {
+    if (row?.action_id) existingByActionId.set(row.action_id, { status: row.status })
+  }
+
+  const awaitingStatusByAutomation = new Set<string>()
+
+  for (const execution of executions) {
+    const existingStatus = existingByActionId.get(execution.action.id)?.status
+    if (existingStatus === 'succeeded' || existingStatus === 'awaiting_cta') {
+      continue
+    }
+
     if (!execution.matched) continue
     matched += 1
     attempted += 1
@@ -386,6 +507,39 @@ async function processExecutions(args: {
       }
     }
 
+    const shouldGate =
+      execution.action.type === 'dm' &&
+      gatedDmActionByAutomation.get(execution.automationId) !== execution.action.id
+
+    const gateActionId = gatedDmActionByAutomation.get(execution.automationId)
+    if (
+      shouldGate &&
+      gateActionId &&
+      existingByActionId.get(gateActionId)?.status === 'failed'
+    ) {
+      await markExecutionStatus({
+        admin: args.admin,
+        eventId: args.eventId,
+        actionId: execution.action.id,
+        status: 'failed',
+        attempts: 0,
+        lastError: 'CTA DM failed',
+      })
+      continue
+    }
+
+    if (shouldGate) {
+      await markExecutionStatus({
+        admin: args.admin,
+        eventId: args.eventId,
+        actionId: execution.action.id,
+        status: 'awaiting_cta',
+        attempts: 0,
+        lastError: null,
+      })
+      continue
+    }
+
     try {
       if (execution.action.type === 'reply') {
         await sendCommentReply({
@@ -397,30 +551,95 @@ async function processExecutions(args: {
         if (!args.connection.ig_user_id) {
           throw new Error('Missing sender ig_user_id on connection (run resolve-connection)')
         }
+        const total = dmCountsByAutomation.get(execution.automationId) ?? 0
+        const shouldAttachCta =
+          total > 1 && gatedDmActionByAutomation.get(execution.automationId) === execution.action.id
+        const ctaText = execution.action.cta_text?.trim() || 'Send me the rest'
+        const quickReplies = shouldAttachCta
+          ? [
+              {
+                title: ctaText,
+                payload: buildQuickReplyPayload({
+                  eventId: args.eventId,
+                  automationId: execution.automationId,
+                  actionId: execution.action.id,
+                  recipientId: args.parsed.fromId,
+                }),
+              },
+            ]
+          : undefined
         await sendDm({
           accessToken,
           senderIgUserId: args.connection.ig_user_id,
           commentId: args.parsed.commentId,
           message: messageText,
+          quickReplies,
         })
+
+        if (shouldAttachCta && !awaitingStatusByAutomation.has(execution.automationId)) {
+          const payload = buildQuickReplyPayload({
+            eventId: args.eventId,
+            automationId: execution.automationId,
+            actionId: execution.action.id,
+            recipientId: args.parsed.fromId,
+          })
+          const ctaStatus = args.parsed.fromId ? 'pending' : 'failed'
+          await args.admin.from('automation_cta_sessions').insert({
+            event_id: args.eventId,
+            automation_id: execution.automationId,
+            connection_id: args.connection.id,
+            recipient_ig_user_id: args.parsed.fromId,
+            payload,
+            status: ctaStatus,
+          })
+
+          const awaitingStatus = args.parsed.fromId ? 'awaiting_cta' : 'failed'
+          const awaitingError = args.parsed.fromId ? null : 'Missing recipient id for CTA'
+          for (const other of executions) {
+            if (other.automationId !== execution.automationId) continue
+            if (other.action.type !== 'dm') continue
+            if (other.action.id === execution.action.id) continue
+            await markExecutionStatus({
+              admin: args.admin,
+              eventId: args.eventId,
+              actionId: other.action.id,
+              status: awaitingStatus,
+              attempts: 0,
+              lastError: awaitingError,
+            })
+          }
+          awaitingStatusByAutomation.add(execution.automationId)
+        }
       }
 
-      await markExecutionStatus({
-        admin: args.admin,
-        eventId: args.eventId,
-        actionId: execution.action.id,
-        status: 'succeeded',
-        attempts: 1,
-        lastError: null,
-        messageText,
-        messageSource,
-        aiError,
-        aiModel,
-        aiPromptVersion,
-        aiLatencyMs,
-      })
+      if (!shouldGate) {
+        await markExecutionStatus({
+          admin: args.admin,
+          eventId: args.eventId,
+          actionId: execution.action.id,
+          status: 'succeeded',
+          attempts: 1,
+          lastError: null,
+          messageText,
+          messageSource,
+          aiError,
+          aiModel,
+          aiPromptVersion,
+          aiLatencyMs,
+        })
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Execution failed'
+      let message = error instanceof Error ? error.message : 'Execution failed'
+      if (message === 'Execution failed') {
+        message = 'Unknown error occurred'
+      }
+      if (error instanceof GraphError && error.payload) {
+        try {
+          message = `${message} | raw=${JSON.stringify(error.payload)}`
+        } catch {
+          message = `${message} | raw=[unserializable]`
+        }
+      }
       await markExecutionStatus({
         admin: args.admin,
         eventId: args.eventId,
@@ -543,7 +762,140 @@ Deno.serve(async (req) => {
   }
 
   if (!parsed) {
-    console.info('Instagram webhook ignored', { reason: 'no-comment-event' })
+    const quickReply = extractQuickReplyPayload(payload)
+    const cta = parseQuickReplyPayload(quickReply?.payload)
+    if (!cta) {
+      console.info('Instagram webhook ignored', { reason: 'no-comment-event' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const payloadString = quickReply?.payload ?? ''
+    const { data: ctaSession, error: ctaError } = await admin
+      .from('automation_cta_sessions')
+      .select('id, event_id, automation_id, connection_id, status, recipient_ig_user_id')
+      .eq('event_id', cta.eventId)
+      .eq('automation_id', cta.automationId)
+      .eq('payload', payloadString)
+      .maybeSingle()
+
+    if (ctaError || !ctaSession) {
+      console.info('CTA interaction ignored', { reason: 'cta-session-not-found' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    if (ctaSession.status !== 'pending') {
+      console.info('CTA interaction ignored', { reason: 'cta-already-processed' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const { data: claimedCta, error: claimError } = await admin
+      .from('automation_cta_sessions')
+      .update({ status: 'processing' })
+      .eq('id', ctaSession.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle()
+
+    if (claimError || !claimedCta) {
+      console.info('CTA interaction ignored', { reason: 'cta-already-claimed' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const { data: connectionRow, error: connectionError } = await admin
+      .from('instagram_connections')
+      .select('id, owner_user_id, access_token_encrypted, ig_user_id')
+      .eq('id', ctaSession.connection_id)
+      .maybeSingle()
+
+    if (connectionError || !connectionRow) {
+      console.error('CTA interaction failed to load connection', connectionError)
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const { data: actions, error: actionsError } = await admin
+      .from('automation_actions')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text')
+      .eq('automation_id', cta.automationId)
+      .order('sort_order', { ascending: true })
+
+    if (actionsError) {
+      console.error('CTA interaction failed to load actions', actionsError)
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    let accessToken: string | null = null
+    try {
+      accessToken = await decryptString(connectionRow.access_token_encrypted)
+    } catch (error) {
+      console.error('CTA interaction failed to decrypt access token', error)
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const recipientId = cta.recipientId ?? quickReply?.senderId ?? null
+    if (ctaSession.recipient_ig_user_id && recipientId && ctaSession.recipient_ig_user_id !== recipientId) {
+      console.info('CTA interaction ignored', { reason: 'recipient-mismatch' })
+      return jsonResponse({ ok: true }, 200, req)
+    }
+
+    const dmActions = (actions ?? []).filter((action) => action.type === 'dm') as ActionRow[]
+    const gateIndex = dmActions.findIndex((action) => action.id === cta.actionId)
+    const remaining = gateIndex >= 0 ? dmActions.slice(gateIndex + 1) : []
+
+    for (const action of remaining) {
+      if (!action.template.trim()) continue
+      if (!connectionRow.ig_user_id || !recipientId) continue
+
+      try {
+        const { data: existingExec, error: existingExecError } = await admin
+          .from('automation_executions')
+          .select('status')
+          .eq('event_id', cta.eventId)
+          .eq('action_id', action.id)
+          .maybeSingle()
+
+        if (existingExecError) {
+          console.error('CTA interaction failed to load execution', existingExecError)
+        } else if (existingExec?.status === 'succeeded') {
+          continue
+        }
+
+        await sendRecipientDm({
+          accessToken,
+          senderIgUserId: connectionRow.ig_user_id,
+          recipientId,
+          message: action.template.trim(),
+        })
+        await markExecutionStatus({
+          admin,
+          eventId: cta.eventId,
+          actionId: action.id,
+          status: 'succeeded',
+          attempts: 1,
+          lastError: null,
+          messageText: action.template.trim(),
+          messageSource: 'template',
+        })
+      } catch (error) {
+        let message = error instanceof Error ? error.message : 'Execution failed'
+        if (message === 'Execution failed') message = 'Unknown error occurred'
+        await markExecutionStatus({
+          admin,
+          eventId: cta.eventId,
+          actionId: action.id,
+          status: 'failed',
+          attempts: 1,
+          lastError: message,
+          messageText: action.template.trim(),
+          messageSource: 'template',
+        })
+      }
+    }
+
+    await admin
+      .from('automation_cta_sessions')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', ctaSession.id)
+
     return jsonResponse({ ok: true }, 200, req)
   }
 
@@ -591,7 +943,7 @@ Deno.serve(async (req) => {
       .in('automation_id', automationIds),
     admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, sort_order, created_at')
+      .select('id, automation_id, type, template, use_ai, sort_order, cta_text, created_at')
       .in('automation_id', automationIds),
   ])
 
