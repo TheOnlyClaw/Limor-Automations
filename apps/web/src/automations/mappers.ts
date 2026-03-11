@@ -13,6 +13,10 @@ export type AutomationAction = {
   template: string
   useAi: boolean
   ctaText: string | null
+  mediaKind: 'image' | null
+  mediaBucket: string | null
+  mediaPath: string | null
+  caption: string | null
   sortOrder: number
   createdAt: string
 }
@@ -66,6 +70,10 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     template: action.template,
     useAi: Boolean(action.use_ai),
     ctaText: action.cta_text ?? null,
+    mediaKind: (action as any).media_kind ?? null,
+    mediaBucket: (action as any).media_bucket ?? null,
+    mediaPath: (action as any).media_path ?? null,
+    caption: (action as any).caption ?? null,
     sortOrder: action.sort_order ?? 0,
     createdAt: action.created_at,
   }))

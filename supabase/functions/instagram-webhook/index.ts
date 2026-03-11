@@ -2,7 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { corsHeaders, errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts'
 import { decryptString } from '../_shared/crypto.ts'
 import { generateGeminiVariant } from '../_shared/gemini.ts'
-import { sendCommentReply, sendDm, sendRecipientDm } from '../_shared/instagramActions.ts'
+import { sendCommentReply, sendDm, sendDmWithImage, sendRecipientDm } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
 import { extractCommentEvent, isReplyComment, isSelfComment, type ParsedCommentEvent } from '../_shared/webhook.ts'
@@ -537,12 +537,46 @@ async function processExecutions(args: {
         if (!args.connection.ig_user_id) {
           throw new Error('Missing sender ig_user_id on connection (run resolve-connection)')
         }
-        await sendDm({
-          accessToken,
-          senderIgUserId: args.connection.ig_user_id,
-          commentId: args.parsed.commentId,
-          message: messageText,
-        })
+        const mediaKind = (execution.action as any).media_kind as string | null | undefined
+        const mediaBucket = (execution.action as any).media_bucket as string | null | undefined
+        const mediaPath = (execution.action as any).media_path as string | null | undefined
+        const caption = ((execution.action as any).caption as string | null | undefined) ?? null
+
+        // If an image is configured for this automation action, attempt media DM first.
+        // If Meta rejects attachments in private reply mode (comment_id), we fallback to text-only.
+        if (mediaKind === 'image' && mediaBucket && mediaPath) {
+          try {
+            const { data: signed, error: signError } = await args.admin.storage
+              .from(mediaBucket)
+              .createSignedUrl(mediaPath, 60 * 5)
+            if (signError || !signed?.signedUrl) {
+              throw new Error(signError?.message || 'Failed to create signed URL')
+            }
+
+            await sendDmWithImage({
+              accessToken,
+              senderIgUserId: args.connection.ig_user_id,
+              commentId: args.parsed.commentId,
+              imageUrl: signed.signedUrl,
+              caption: (caption || messageText || null) ?? null,
+            })
+          } catch (mediaErr) {
+            console.warn('DM image send failed; falling back to text-only', mediaErr)
+            await sendDm({
+              accessToken,
+              senderIgUserId: args.connection.ig_user_id,
+              commentId: args.parsed.commentId,
+              message: messageText,
+            })
+          }
+        } else {
+          await sendDm({
+            accessToken,
+            senderIgUserId: args.connection.ig_user_id,
+            commentId: args.parsed.commentId,
+            message: messageText,
+          })
+        }
       }
 
       if (!shouldGate) {

@@ -59,3 +59,34 @@ export async function sendRecipientDm(args: {
     message: { text: args.message },
   })
 }
+
+
+// Best-effort DM with an image attachment.
+// Caveat: Meta may reject attachments when using recipient.comment_id (private reply to comment).
+// Callers should catch errors and fallback to text-only.
+export async function sendDmWithImage(args: {
+  accessToken: string
+  senderIgUserId: string
+  commentId: string
+  imageUrl: string
+  caption?: string | null
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+
+  // Attempt a single message with attachment + optional caption.
+  // If the API doesn't allow text with attachment, caller can fallback to two messages.
+  return graphPostJson(url.toString(), {
+    recipient: { comment_id: args.commentId },
+    message: {
+      attachment: {
+        type: 'image',
+        payload: {
+          url: args.imageUrl,
+          is_reusable: true,
+        },
+      },
+      ...(args.caption ? { text: args.caption } : {}),
+    },
+  })
+}
