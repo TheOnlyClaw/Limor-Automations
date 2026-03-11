@@ -50,8 +50,8 @@ export function automationToDraftFields(
   const replyEnabled = replyTemplates.some((template) => template.trim().length > 0)
   const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
   const firstDm = dmActions[0]
-  const dmImageEnabled = Boolean(firstDm?.mediaPath)
-  const dmMediaKind = (firstDm?.mediaKind as any) ?? null
+  const dmImageEnabled = Boolean((firstDm as { mediaEnabled?: boolean | null } | undefined)?.mediaEnabled ?? firstDm?.mediaPath)
+  const dmMediaKind = (firstDm as { mediaKind?: 'image' | null } | undefined)?.mediaKind ?? null
   const dmMediaBucket = firstDm?.mediaBucket ?? null
   const dmMediaPath = firstDm?.mediaPath ?? null
   const dmCtaText = a?.dmCtaText ?? ''
@@ -80,7 +80,7 @@ export function automationToDraftFields(
 
 export function draftToRulesActions(draft: AutomationDraft): {
   rules: Array<{ pattern: string; flags?: string }>
-  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null }>
+  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaEnabled?: boolean }>
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
@@ -89,7 +89,7 @@ export function draftToRulesActions(draft: AutomationDraft): {
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
-  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null }> = []
+  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaEnabled?: boolean }> = []
   if (draft.replyEnabled) {
     replyMessages.forEach((message) => {
       actions.push({ type: 'reply', template: message, useAi: draft.replyUseAi })
@@ -104,13 +104,18 @@ export function draftToRulesActions(draft: AutomationDraft): {
         mediaKind?: 'image' | null
         mediaBucket?: string | null
         mediaPath?: string | null
+        mediaEnabled?: boolean
       } = {
         type: 'dm',
         template: message,
         useAi: false,
-        mediaKind: draft.dmImageEnabled ? (draft.dmMediaKind ?? null) : null,
-        mediaBucket: draft.dmImageEnabled ? (draft.dmMediaBucket ?? null) : null,
-        mediaPath: draft.dmImageEnabled ? (draft.dmMediaPath ?? null) : null,
+        // Always persist the last uploaded media (kind/bucket/path) so the UI can
+        // toggle "send image" on/off without losing the upload.
+        mediaKind: draft.dmMediaKind ?? null,
+        mediaBucket: draft.dmMediaBucket ?? null,
+        mediaPath: draft.dmMediaPath ?? null,
+        // This is the actual "send attachment" switch.
+        mediaEnabled: Boolean(draft.dmImageEnabled),
       }
       actions.push(action)
     })

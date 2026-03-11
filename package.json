@@ -7,11 +7,11 @@
     "apps/web"
   ],
   "scripts": {
-    "dev": "npm -w apps/web run dev",
-    "dev:web": "npm -w apps/web run dev",
-    "build": "npm -w apps/web run build",
-    "lint": "npm -w apps/web run lint --if-present",
-    "typecheck": "npm -w apps/web exec tsc -b",
+    "dev": "corepack npm -w apps/web run dev",
+    "dev:web": "corepack npm -w apps/web run dev",
+    "build": "corepack npm -w apps/web run build",
+    "lint": "corepack npm -w apps/web run lint --if-present",
+    "typecheck": "corepack npm -w apps/web exec tsc -b",
     "spec": "opsx-kit"
   },
   "devDependencies": {

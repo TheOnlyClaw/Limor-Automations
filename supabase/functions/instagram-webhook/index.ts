@@ -809,7 +809,7 @@ Deno.serve(async (req) => {
 
     const { data: actions, error: actionsError } = await admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path, media_enabled')
       .eq('automation_id', cta.automationId)
       .order('sort_order', { ascending: true })
 
@@ -868,7 +868,8 @@ Deno.serve(async (req) => {
 
         const actionText = action.template.trim()
 
-        const hasImage = mediaKind === 'image' && !!mediaBucket && !!mediaPath
+        const mediaEnabled = Boolean((action as unknown as { media_enabled?: boolean | null }).media_enabled ?? false)
+        const hasImage = mediaEnabled && mediaKind === 'image' && !!mediaBucket && !!mediaPath
 
         if (hasImage) {
           try {

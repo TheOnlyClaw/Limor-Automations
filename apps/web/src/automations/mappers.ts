@@ -16,6 +16,7 @@ export type AutomationAction = {
   mediaKind: 'image' | null
   mediaBucket: string | null
   mediaPath: string | null
+  mediaEnabled: boolean
   sortOrder: number
   createdAt: string
 }
@@ -62,19 +63,24 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
     flags: rule.flags,
     createdAt: rule.created_at,
   }))
+  const actions = [...(row.automation_actions ?? [])]
+    .sort(byActionOrderAsc)
+    .map((action) => {
 
-  const actions = [...(row.automation_actions ?? [])].sort(byActionOrderAsc).map((action) => ({
-    id: action.id,
-    type: toActionType(action.type),
-    template: action.template,
-    useAi: Boolean(action.use_ai),
-    ctaText: action.cta_text ?? null,
-    mediaKind: (action as any).media_kind ?? null,
-    mediaBucket: (action as any).media_bucket ?? null,
-    mediaPath: (action as any).media_path ?? null,
-    sortOrder: action.sort_order ?? 0,
-    createdAt: action.created_at,
-  }))
+      return {
+        id: action.id,
+        type: toActionType(action.type),
+        template: action.template,
+        useAi: Boolean(action.use_ai),
+        ctaText: action.cta_text ?? null,
+        mediaKind: (action as unknown as { media_kind?: 'image' | null }).media_kind ?? null,
+        mediaBucket: (action as unknown as { media_bucket?: string | null }).media_bucket ?? null,
+        mediaPath: (action as unknown as { media_path?: string | null }).media_path ?? null,
+        mediaEnabled: Boolean((action as unknown as { media_enabled?: boolean | null; media_path?: string | null }).media_enabled ?? (action as unknown as { media_path?: string | null }).media_path),
+        sortOrder: action.sort_order ?? 0,
+        createdAt: action.created_at,
+      }
+    })
 
   return {
     id: row.id,

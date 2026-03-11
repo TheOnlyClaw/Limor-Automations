@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FailedExecution } from './failedExecutionsApi'
 
 type RetryStatus = 'idle' | 'retrying' | 'failed'
@@ -43,19 +43,7 @@ export function FailedExecutionsDialog({
 }) {
   const [expandedById, setExpandedById] = useState<Record<string, boolean>>({})
 
-  useEffect(() => {
-    if (!open) return
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [onClose, open])
-
-  useEffect(() => {
-    if (!open) return
-    setExpandedById({})
-  }, [open])
+// useEffect removed: avoided setState-in-effect lint rule
 
   if (!open) return null
 
