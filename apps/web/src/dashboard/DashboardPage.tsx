@@ -982,13 +982,6 @@ export function DashboardPage({
               ? {
                   ...m[configPostId]!,
                   dmImageEnabled,
-                  ...(dmImageEnabled
-                    ? {}
-                    : {
-                        dmMediaKind: null,
-                        dmMediaBucket: null,
-                        dmMediaPath: null,
-                      }),
                   dirty: true,
                   error: null,
                 }
