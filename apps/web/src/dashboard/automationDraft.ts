@@ -9,7 +9,11 @@ export type AutomationDraft = {
   replyTemplates: string[]
   replyUseAi: boolean
   dmEnabled: boolean
+  dmImageEnabled: boolean
   dmTemplates: string[]
+  dmMediaKind: 'image' | null
+  dmMediaBucket: string | null
+  dmMediaPath: string | null
   dmCtaText: string
   dmCtaGreeting: string
   dmCtaEnabled: boolean
@@ -29,7 +33,11 @@ export function automationToDraftFields(
   | 'replyTemplates'
   | 'replyUseAi'
   | 'dmEnabled'
+  | 'dmImageEnabled'
   | 'dmTemplates'
+  | 'dmMediaKind'
+  | 'dmMediaBucket'
+  | 'dmMediaPath'
   | 'dmCtaText'
   | 'dmCtaGreeting'
   | 'dmCtaEnabled'
@@ -41,6 +49,11 @@ export function automationToDraftFields(
   const dmTemplates = dmActions.length ? dmActions.map((action) => action.template) : ['']
   const replyEnabled = replyTemplates.some((template) => template.trim().length > 0)
   const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
+  const firstDm = dmActions[0]
+  const dmImageEnabled = Boolean(firstDm?.mediaPath)
+  const dmMediaKind = (firstDm?.mediaKind as any) ?? null
+  const dmMediaBucket = firstDm?.mediaBucket ?? null
+  const dmMediaPath = firstDm?.mediaPath ?? null
   const dmCtaText = a?.dmCtaText ?? ''
   const dmCtaGreeting = a?.dmCtaGreeting ?? ''
   const dmCtaEnabled = Boolean(a?.dmCtaEnabled)
@@ -54,7 +67,11 @@ export function automationToDraftFields(
     replyTemplates,
     replyUseAi,
     dmEnabled,
+    dmImageEnabled,
     dmTemplates,
+    dmMediaKind,
+    dmMediaBucket,
+    dmMediaPath,
     dmCtaText,
     dmCtaGreeting,
     dmCtaEnabled,
@@ -63,7 +80,7 @@ export function automationToDraftFields(
 
 export function draftToRulesActions(draft: AutomationDraft): {
   rules: Array<{ pattern: string; flags?: string }>
-  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean }>
+  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null }>
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
@@ -72,7 +89,7 @@ export function draftToRulesActions(draft: AutomationDraft): {
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
-  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean }> = []
+  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null }> = []
   if (draft.replyEnabled) {
     replyMessages.forEach((message) => {
       actions.push({ type: 'reply', template: message, useAi: draft.replyUseAi })
@@ -80,10 +97,20 @@ export function draftToRulesActions(draft: AutomationDraft): {
   }
   if (draft.dmEnabled) {
     dmMessages.forEach((message) => {
-      const action: { type: 'dm'; template: string; useAi: boolean } = {
+      const action: {
+        type: 'dm'
+        template: string
+        useAi: boolean
+        mediaKind?: 'image' | null
+        mediaBucket?: string | null
+        mediaPath?: string | null
+      } = {
         type: 'dm',
         template: message,
         useAi: false,
+        mediaKind: draft.dmImageEnabled ? (draft.dmMediaKind ?? null) : null,
+        mediaBucket: draft.dmImageEnabled ? (draft.dmMediaBucket ?? null) : null,
+        mediaPath: draft.dmImageEnabled ? (draft.dmMediaPath ?? null) : null,
       }
       actions.push(action)
     })

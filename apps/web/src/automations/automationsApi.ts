@@ -14,7 +14,7 @@ const automationSelect = [
   'created_at',
   'updated_at',
   'automation_rules(id, pattern, flags, created_at)',
-  'automation_actions(id, type, template, use_ai, sort_order, cta_text, created_at)',
+  'automation_actions(id, type, template, use_ai, sort_order, cta_text, media_kind, media_bucket, media_path, created_at)',
 ].join(', ')
 
 type RpcClient = {
@@ -28,7 +28,15 @@ type RpcClient = {
 }
 
 type RuleInput = Array<{ pattern: string; flags?: string }>
-type ActionInput = Array<{ type: 'reply' | 'dm'; template: string; useAi?: boolean; ctaText?: string | null }>
+type ActionInput = Array<{
+  type: 'reply' | 'dm'
+  template: string
+  useAi?: boolean
+  ctaText?: string | null
+  mediaKind?: 'image' | null
+  mediaBucket?: string | null
+  mediaPath?: string | null
+}>
 
 type CreateAutomationInput = {
   connectionId: string

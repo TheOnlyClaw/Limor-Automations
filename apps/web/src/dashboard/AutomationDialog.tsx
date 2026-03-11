@@ -29,6 +29,8 @@ export function AutomationDialog({
   onChangeDmTemplate,
   onAddDmTemplate,
   onRemoveDmTemplate,
+  onChangeDmImage,
+  onToggleDmImage,
   onChangeDmCtaText,
   onChangeDmCtaGreeting,
   onToggleDmCtaEnabled,
@@ -51,6 +53,8 @@ export function AutomationDialog({
   onChangeDmTemplate: (index: number, template: string) => void
   onAddDmTemplate: () => void
   onRemoveDmTemplate: (index: number) => void
+  onChangeDmImage: (file: File | null) => void
+  onToggleDmImage: (enabled: boolean) => void
   onChangeDmCtaText: (ctaText: string) => void
   onChangeDmCtaGreeting: (ctaGreeting: string) => void
   onToggleDmCtaEnabled: (enabled: boolean) => void
@@ -208,6 +212,40 @@ export function AutomationDialog({
                     />
                   </label>
                 </div>
+                                <div className="mt-4 grid gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold text-zinc-200">Optional: Image (static)</div>
+                    <label className="flex items-center gap-2 text-[11px] text-zinc-300">
+                      <span>Send image</span>
+                      <input
+                        type="checkbox"
+                        checked={draft.dmImageEnabled}
+                        onChange={(e) => onToggleDmImage(e.target.checked)}
+                        disabled={!draft.dmEnabled}
+                      />
+                    </label>
+                  </div>
+                  <div className="text-[11px] text-zinc-500">
+                    We will try to send the image first (max 4MB). If Instagram rejects attachments for private replies, we fall back to text-only.
+                  </div>
+
+                  <label className="grid gap-1">
+                    <div className="text-[11px] text-zinc-400">Image</div>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={!draft.dmEnabled}
+                      onChange={(e) => onChangeDmImage(e.target.files?.[0] ?? null)}
+                      className="block w-full text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border file:border-zinc-700 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-100"
+                    />
+                    {draft.dmMediaPath ? (
+                      <div className="text-[11px] text-zinc-500">Saved: {draft.dmMediaPath}</div>
+                    ) : (
+                      <div className="text-[11px] text-zinc-600">No image uploaded</div>
+                    )}
+                  </label>
+
+
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {dmTemplates.map((_, index) => {
                     const isActive = dmTab === index

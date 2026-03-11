@@ -59,3 +59,52 @@ export async function sendRecipientDm(args: {
     message: { text: args.message },
   })
 }
+
+
+// Best-effort DM with an image attachment.
+// Caveat: Meta may reject attachments when using recipient.comment_id (private reply to comment).
+// Callers should catch errors and fallback to text-only.
+export async function sendDmWithImage(args: {
+  accessToken: string
+  senderIgUserId: string
+  commentId: string
+  imageUrl: string
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+  // Send an image attachment.
+  return graphPostJson(url.toString(), {
+    recipient: { comment_id: args.commentId },
+    message: {
+      attachment: {
+        type: 'image',
+        payload: {
+          url: args.imageUrl,
+          is_reusable: true,
+        },
+      },
+    },
+  })
+}
+export async function sendRecipientDmWithImage(args: {
+  accessToken: string
+  senderIgUserId: string
+  recipientId: string
+  imageUrl: string
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+
+  return graphPostJson(url.toString(), {
+    recipient: { id: args.recipientId },
+    message: {
+      attachment: {
+        type: 'image',
+        payload: {
+          url: args.imageUrl,
+          is_reusable: true,
+        },
+      },
+    },
+  })
+}

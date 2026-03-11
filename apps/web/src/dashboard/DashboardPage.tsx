@@ -175,7 +175,7 @@ export function DashboardPage({
       for (const p of posts) {
         const existing = prev[p.id]
         const a = automationByPostId[p.id]
-          if (!existing) {
+        if (!existing) {
             const base = automationToDraftFields(a)
             next[p.id] = {
               automationId: a?.id ?? null,
@@ -187,6 +187,10 @@ export function DashboardPage({
               replyUseAi: base.replyUseAi,
               dmEnabled: base.dmEnabled,
               dmTemplates: base.dmTemplates,
+              dmMediaKind: base.dmMediaKind,
+              dmMediaBucket: base.dmMediaBucket,
+              dmMediaPath: base.dmMediaPath,
+              dmImageEnabled: base.dmImageEnabled,
               dmCtaText: base.dmCtaText,
               dmCtaGreeting: base.dmCtaGreeting,
               dmCtaEnabled: base.dmCtaEnabled,
@@ -218,6 +222,10 @@ export function DashboardPage({
             replyUseAi: base.replyUseAi,
             dmEnabled: base.dmEnabled,
             dmTemplates: base.dmTemplates,
+            dmMediaKind: base.dmMediaKind,
+            dmMediaBucket: base.dmMediaBucket,
+            dmMediaPath: base.dmMediaPath,
+            dmImageEnabled: base.dmImageEnabled,
             dmCtaText: base.dmCtaText,
             dmCtaGreeting: base.dmCtaGreeting,
             dmCtaEnabled: base.dmCtaEnabled,
@@ -900,6 +908,10 @@ export function DashboardPage({
                   dmCtaText: dmEnabled ? m[configPostId]!.dmCtaText : '',
                   dmCtaGreeting: dmEnabled ? m[configPostId]!.dmCtaGreeting : '',
                   dmCtaEnabled: dmEnabled ? m[configPostId]!.dmCtaEnabled : false,
+                  dmMediaKind: dmEnabled ? m[configPostId]!.dmMediaKind : null,
+                  dmMediaBucket: dmEnabled ? m[configPostId]!.dmMediaBucket : null,
+                  dmMediaPath: dmEnabled ? m[configPostId]!.dmMediaPath : null,
+                  dmImageEnabled: dmEnabled ? m[configPostId]!.dmImageEnabled : false,
                   dirty: true,
                   error: null,
                 }
@@ -961,6 +973,100 @@ export function DashboardPage({
                 }
               : m[configPostId],
           }))
+        }}
+        onToggleDmImage={(dmImageEnabled: boolean) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmImageEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
+        onChangeDmImage={async (file: File | null) => {
+          if (!configPostId) return
+          if (!file) {
+            setListenerDraftsByPostId((m) => ({
+              ...m,
+              [configPostId]: m[configPostId]
+                ? {
+                    ...m[configPostId]!,
+                    dmMediaKind: null,
+                    dmMediaBucket: null,
+                    dmMediaPath: null,
+                    dmImageEnabled: false,
+                    dirty: true,
+                    error: null,
+                  }
+                : m[configPostId],
+            }))
+            return
+          }
+
+          // Hard cap to reduce Meta upload failures/timeouts.
+          // 4 MiB = 4 * 1024 * 1024 bytes.
+          const MAX_DM_IMAGE_BYTES = 4 * 1024 * 1024
+          if (file.size > MAX_DM_IMAGE_BYTES) {
+            setListenerDraftsByPostId((m) => ({
+              ...m,
+              [configPostId]: m[configPostId]
+                ? {
+                    ...m[configPostId]!,
+                    error: 'Image must be 4MB or less',
+                  }
+                : m[configPostId],
+            }))
+            return
+          }
+
+
+          // Upload immediately so the automation can reuse the same asset.
+          try {
+            const { supabase } = await import('../lib/supabase')
+            const { data: auth } = await supabase.auth.getUser()
+            const uid = auth.user?.id
+            if (!uid) throw new Error('Not authenticated')
+
+            const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+            const safeExt = ['jpg','jpeg','png','webp'].includes(ext) ? ext : 'jpg'
+            const path = `${uid}/dm/${Date.now()}-${Math.random().toString(16).slice(2)}.${safeExt}`
+
+            const { error: uploadError } = await supabase.storage
+              .from('automation-media')
+              .upload(path, file, { upsert: false, contentType: file.type || undefined })
+            if (uploadError) throw uploadError
+
+            setListenerDraftsByPostId((m) => ({
+              ...m,
+              [configPostId]: m[configPostId]
+                ? {
+                    ...m[configPostId]!,
+                    dmMediaKind: 'image',
+                    dmMediaBucket: 'automation-media',
+                    dmMediaPath: path,
+                    dmImageEnabled: true,
+                    dirty: true,
+                    error: null,
+                  }
+                : m[configPostId],
+            }))
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Failed to upload image'
+            setListenerDraftsByPostId((m) => ({
+              ...m,
+              [configPostId]: m[configPostId]
+                ? {
+                    ...m[configPostId]!,
+                    error: msg,
+                  }
+                : m[configPostId],
+            }))
+          }
         }}
         onChangeDmCtaText={(dmCtaText) => {
           if (!configPostId) return
