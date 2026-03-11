@@ -90,3 +90,26 @@ export async function sendDmWithImage(args: {
     },
   })
 }
+
+export async function sendRecipientDmWithImage(args: {
+  accessToken: string
+  senderIgUserId: string
+  recipientId: string
+  imageUrl: string
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+
+  return graphPostJson(url.toString(), {
+    recipient: { id: args.recipientId },
+    message: {
+      attachment: {
+        type: 'image',
+        payload: {
+          url: args.imageUrl,
+          is_reusable: true,
+        },
+      },
+    },
+  })
+}
