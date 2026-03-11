@@ -386,11 +386,13 @@ async function processExecutions(args: {
     action: ActionRow
     matched: boolean
   }> = []
+  const matchedByAutomation = new Map<string, boolean>()
 
   for (const automation of args.automations) {
     const rules = args.rulesByAutomation.get(automation.id) ?? []
     const actions = args.actionsByAutomation.get(automation.id) ?? []
     const matched = rulesMatch(rules, args.parsed.commentText)
+    matchedByAutomation.set(automation.id, matched)
     const selectedReply = await pickReplyAction({
       actions,
       eventId: args.eventId,
@@ -599,6 +601,7 @@ async function processExecutions(args: {
   }
 
   for (const automation of args.automations) {
+    if (!matchedByAutomation.get(automation.id)) continue
     const actions = args.actionsByAutomation.get(automation.id) ?? []
     const dmActions = actions.filter((action) => action.type === 'dm')
     const shouldGate = dmActions.length > 1 || automation.dm_cta_enabled
