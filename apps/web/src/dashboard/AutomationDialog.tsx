@@ -29,8 +29,8 @@ export function AutomationDialog({
   onChangeDmTemplate,
   onAddDmTemplate,
   onRemoveDmTemplate,
-  onChangeDmCaption,
   onChangeDmImage,
+  onToggleDmImage,
   onChangeDmCtaText,
   onChangeDmCtaGreeting,
   onToggleDmCtaEnabled,
@@ -53,8 +53,8 @@ export function AutomationDialog({
   onChangeDmTemplate: (index: number, template: string) => void
   onAddDmTemplate: () => void
   onRemoveDmTemplate: (index: number) => void
-  onChangeDmCaption: (caption: string) => void
   onChangeDmImage: (file: File | null) => void
+  onToggleDmImage: (enabled: boolean) => void
   onChangeDmCtaText: (ctaText: string) => void
   onChangeDmCtaGreeting: (ctaGreeting: string) => void
   onToggleDmCtaEnabled: (enabled: boolean) => void
@@ -212,8 +212,19 @@ export function AutomationDialog({
                     />
                   </label>
                 </div>
-                <div className="mt-4 grid gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
-                  <div className="text-[11px] font-semibold text-zinc-200">Optional: Image + caption (static)</div>
+                                <div className="mt-4 grid gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-semibold text-zinc-200">Optional: Image (static)</div>
+                    <label className="flex items-center gap-2 text-[11px] text-zinc-300">
+                      <span>Send image</span>
+                      <input
+                        type="checkbox"
+                        checked={draft.dmImageEnabled}
+                        onChange={(e) => onToggleDmImage(e.target.checked)}
+                        disabled={!draft.dmEnabled}
+                      />
+                    </label>
+                  </div>
                   <div className="text-[11px] text-zinc-500">
                     We will try to send the image first (max 4MB). If Instagram rejects attachments for private replies, we fall back to text-only.
                   </div>
@@ -234,18 +245,6 @@ export function AutomationDialog({
                     )}
                   </label>
 
-                  <label className="grid gap-1">
-                    <div className="text-[11px] text-zinc-400">Caption (sent with the image when possible)</div>
-                    <textarea
-                      className="min-h-[64px] w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none disabled:opacity-60"
-                      dir="rtl"
-                      value={draft.dmCaption}
-                      onChange={(e) => onChangeDmCaption(e.target.value)}
-                      placeholder="Your caption"
-                      disabled={!draft.dmEnabled}
-                    />
-                  </label>
-                </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {dmTemplates.map((_, index) => {
