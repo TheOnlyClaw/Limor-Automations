@@ -85,7 +85,6 @@ export function AutomationDialog({
   const safeDmTab = Math.min(dmTab, dmTemplates.length - 1)
   const activeDmTemplate = dmTemplates[safeDmTab] ?? ''
   const dmCount = dmTemplates.filter((template) => template.trim().length > 0).length
-  const hasCtaContent = Boolean(draft.dmCtaText.trim() || draft.dmCtaGreeting.trim())
   const showDmCta = draft.dmEnabled && dmTemplates.length > 0
   const dmLimit = 999
 
