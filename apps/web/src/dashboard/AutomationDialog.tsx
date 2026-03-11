@@ -215,7 +215,7 @@ export function AutomationDialog({
                 <div className="mt-4 grid gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
                   <div className="text-[11px] font-semibold text-zinc-200">Optional: Image + caption (static)</div>
                   <div className="text-[11px] text-zinc-500">
-                    We will try to send the image first. If Instagram rejects attachments for private replies, we fall back to text-only.
+                    We will try to send the image first (max 4MB). If Instagram rejects attachments for private replies, we fall back to text-only.
                   </div>
 
                   <label className="grid gap-1">

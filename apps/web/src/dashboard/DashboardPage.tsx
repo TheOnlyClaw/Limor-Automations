@@ -1003,6 +1003,23 @@ export function DashboardPage({
             return
           }
 
+          // Hard cap to reduce Meta upload failures/timeouts.
+          // 4 MiB = 4 * 1024 * 1024 bytes.
+          const MAX_DM_IMAGE_BYTES = 4 * 1024 * 1024
+          if (file.size > MAX_DM_IMAGE_BYTES) {
+            setListenerDraftsByPostId((m) => ({
+              ...m,
+              [configPostId]: m[configPostId]
+                ? {
+                    ...m[configPostId]!,
+                    error: 'Image must be 4MB or less',
+                  }
+                : m[configPostId],
+            }))
+            return
+          }
+
+
           // Upload immediately so the automation can reuse the same asset.
           try {
             const { supabase } = await import('../lib/supabase')
