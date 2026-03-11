@@ -175,7 +175,7 @@ export function DashboardPage({
       for (const p of posts) {
         const existing = prev[p.id]
         const a = automationByPostId[p.id]
-          if (!existing) {
+        if (!existing) {
             const base = automationToDraftFields(a)
             next[p.id] = {
               automationId: a?.id ?? null,
@@ -190,7 +190,7 @@ export function DashboardPage({
               dmMediaKind: base.dmMediaKind,
               dmMediaBucket: base.dmMediaBucket,
               dmMediaPath: base.dmMediaPath,
-              dmCaption: base.dmCaption,
+              dmImageEnabled: base.dmImageEnabled,
               dmCtaText: base.dmCtaText,
               dmCtaGreeting: base.dmCtaGreeting,
               dmCtaEnabled: base.dmCtaEnabled,
@@ -225,7 +225,7 @@ export function DashboardPage({
             dmMediaKind: base.dmMediaKind,
             dmMediaBucket: base.dmMediaBucket,
             dmMediaPath: base.dmMediaPath,
-            dmCaption: base.dmCaption,
+            dmImageEnabled: base.dmImageEnabled,
             dmCtaText: base.dmCtaText,
             dmCtaGreeting: base.dmCtaGreeting,
             dmCtaEnabled: base.dmCtaEnabled,
@@ -908,6 +908,10 @@ export function DashboardPage({
                   dmCtaText: dmEnabled ? m[configPostId]!.dmCtaText : '',
                   dmCtaGreeting: dmEnabled ? m[configPostId]!.dmCtaGreeting : '',
                   dmCtaEnabled: dmEnabled ? m[configPostId]!.dmCtaEnabled : false,
+                  dmMediaKind: dmEnabled ? m[configPostId]!.dmMediaKind : null,
+                  dmMediaBucket: dmEnabled ? m[configPostId]!.dmMediaBucket : null,
+                  dmMediaPath: dmEnabled ? m[configPostId]!.dmMediaPath : null,
+                  dmImageEnabled: dmEnabled ? m[configPostId]!.dmImageEnabled : false,
                   dirty: true,
                   error: null,
                 }
@@ -970,14 +974,14 @@ export function DashboardPage({
               : m[configPostId],
           }))
         }}
-        onChangeDmCaption={(dmCaption: string) => {
+        onToggleDmImage={(dmImageEnabled: boolean) => {
           if (!configPostId) return
           setListenerDraftsByPostId((m) => ({
             ...m,
             [configPostId]: m[configPostId]
               ? {
                   ...m[configPostId]!,
-                  dmCaption,
+                  dmImageEnabled,
                   dirty: true,
                   error: null,
                 }
@@ -995,6 +999,7 @@ export function DashboardPage({
                     dmMediaKind: null,
                     dmMediaBucket: null,
                     dmMediaPath: null,
+                    dmImageEnabled: false,
                     dirty: true,
                     error: null,
                   }
@@ -1044,6 +1049,7 @@ export function DashboardPage({
                     dmMediaKind: 'image',
                     dmMediaBucket: 'automation-media',
                     dmMediaPath: path,
+                    dmImageEnabled: true,
                     dirty: true,
                     error: null,
                   }

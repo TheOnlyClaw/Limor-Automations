@@ -336,7 +336,6 @@ export type Database = {
       }
       instagram_posts: {
         Row: {
-          caption: string | null
           connection_id: string
           id: string
           media_type: string
@@ -348,7 +347,6 @@ export type Database = {
           thumbnail_url: string | null
         }
         Insert: {
-          caption?: string | null
           connection_id: string
           id: string
           media_type: string
@@ -360,7 +358,6 @@ export type Database = {
           thumbnail_url?: string | null
         }
         Update: {
-          caption?: string | null
           connection_id?: string
           id?: string
           media_type?: string
