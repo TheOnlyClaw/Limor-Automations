@@ -809,7 +809,7 @@ Deno.serve(async (req) => {
 
     const { data: actions, error: actionsError } = await admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path, caption')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path')
       .eq('automation_id', cta.automationId)
       .order('sort_order', { ascending: true })
 
@@ -842,7 +842,6 @@ Deno.serve(async (req) => {
       const mediaKind = (action as any).media_kind as string | null | undefined
       const mediaBucket = (action as any).media_bucket as string | null | undefined
       const mediaPath = (action as any).media_path as string | null | undefined
-      const caption = ((action as any).caption as string | null | undefined) ?? null
 
       try {
         const { data: existingExec, error: existingExecError } = await admin
@@ -869,16 +868,13 @@ Deno.serve(async (req) => {
               throw new Error(signError?.message || "Failed to create signed URL")
             }
 
-            // Send caption/text first (if provided), then send the image as a follow-up message.
-            const text = (caption || action.template.trim()).trim()
-            if (text) {
-              await sendRecipientDm({
-                accessToken,
-                senderIgUserId: connectionRow.ig_user_id,
-                recipientId,
-                message: text,
-              })
-            }
+            // Always send the configured textual DM(s) first, then send the image as a follow-up.
+            await sendRecipientDm({
+              accessToken,
+              senderIgUserId: connectionRow.ig_user_id,
+              recipientId,
+              message: action.template.trim(),
+            })
 
             await sendRecipientDmWithImage({
               accessToken,

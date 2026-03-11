@@ -69,13 +69,10 @@ export async function sendDmWithImage(args: {
   senderIgUserId: string
   commentId: string
   imageUrl: string
-  caption?: string | null
 }) {
   const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
   url.searchParams.set('access_token', args.accessToken)
-
-  // Attempt a single message with attachment + optional caption.
-  // If the API doesn't allow text with attachment, caller can fallback to two messages.
+  // Send an image attachment.
   return graphPostJson(url.toString(), {
     recipient: { comment_id: args.commentId },
     message: {
@@ -86,11 +83,9 @@ export async function sendDmWithImage(args: {
           is_reusable: true,
         },
       },
-      ...(args.caption ? { text: args.caption } : {}),
     },
   })
 }
-
 export async function sendRecipientDmWithImage(args: {
   accessToken: string
   senderIgUserId: string
