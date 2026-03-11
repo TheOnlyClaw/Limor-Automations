@@ -835,13 +835,17 @@ Deno.serve(async (req) => {
     const dmActions = (actions ?? []).filter((action) => action.type === 'dm') as ActionRow[]
     const remaining = dmActions
 
+    // Send attachment at most once per CTA click.
+    let mediaSent = false
+
     for (const action of remaining) {
       if (!action.template.trim()) continue
       if (!connectionRow.ig_user_id || !recipientId) continue
 
-      const mediaKind = (action as any).media_kind as string | null | undefined
-      const mediaBucket = (action as any).media_bucket as string | null | undefined
-      const mediaPath = (action as any).media_path as string | null | undefined
+      // Media is modeled on the action row; we only want to send it once.
+      const mediaKind = !mediaSent ? ((action as any).media_kind as string | null | undefined) : null
+      const mediaBucket = !mediaSent ? ((action as any).media_bucket as string | null | undefined) : null
+      const mediaPath = !mediaSent ? ((action as any).media_path as string | null | undefined) : null
 
       try {
         const { data: existingExec, error: existingExecError } = await admin
@@ -858,46 +862,63 @@ Deno.serve(async (req) => {
         }
 
         // CTA phase: send the DM content after the user explicitly clicked the CTA.
-        // If this action has an image configured, attempt media delivery here (not before CTA).
-        if (mediaKind === "image" && mediaBucket && mediaPath) {
+        // Attachment behavior (required): send the image ONCE (if configured), then send ALL configured DM messages.
+        // Current schema associates media fields with the dm action; we implement "send once" by sending
+        // media only for the first dm action that has media.
+
+        const actionText = action.template.trim()
+
+        const hasImage = mediaKind === 'image' && !!mediaBucket && !!mediaPath
+
+        if (hasImage) {
           try {
             const { data: signed, error: signError } = await admin.storage
-              .from(mediaBucket)
-              .createSignedUrl(mediaPath, 60 * 5)
+              .from(mediaBucket!)
+              .createSignedUrl(mediaPath!, 60 * 5)
             if (signError || !signed?.signedUrl) {
-              throw new Error(signError?.message || "Failed to create signed URL")
+              throw new Error(signError?.message || 'Failed to create signed URL')
             }
 
-            // Always send the configured textual DM(s) first, then send the image as a follow-up.
-            await sendRecipientDm({
-              accessToken,
-              senderIgUserId: connectionRow.ig_user_id,
-              recipientId,
-              message: action.template.trim(),
-            })
-
+            // 1) Send image first
             await sendRecipientDmWithImage({
               accessToken,
               senderIgUserId: connectionRow.ig_user_id,
               recipientId,
               imageUrl: signed.signedUrl,
             })
+
+            // 2) Then send the configured DM message
+            if (actionText) {
+              await sendRecipientDm({
+                accessToken,
+                senderIgUserId: connectionRow.ig_user_id,
+                recipientId,
+                message: actionText,
+              })
+            }
+
+            // Mark this media as consumed so subsequent DM actions won't resend it.
+            mediaSent = true
           } catch (mediaErr) {
-            console.warn("CTA DM image send failed; falling back to text-only", mediaErr)
+            console.warn('CTA DM image send failed; falling back to text-only', mediaErr)
+            if (actionText) {
+              await sendRecipientDm({
+                accessToken,
+                senderIgUserId: connectionRow.ig_user_id,
+                recipientId,
+                message: actionText,
+              })
+            }
+          }
+        } else {
+          if (actionText) {
             await sendRecipientDm({
               accessToken,
               senderIgUserId: connectionRow.ig_user_id,
               recipientId,
-              message: action.template.trim(),
+              message: actionText,
             })
           }
-        } else {
-          await sendRecipientDm({
-            accessToken,
-            senderIgUserId: connectionRow.ig_user_id,
-            recipientId,
-            message: action.template.trim(),
-          })
         }
         await markExecutionStatus({
           admin,
