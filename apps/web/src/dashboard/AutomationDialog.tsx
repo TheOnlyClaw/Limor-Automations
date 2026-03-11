@@ -221,7 +221,7 @@ export function AutomationDialog({
                         type="checkbox"
                         checked={draft.dmImageEnabled}
                         onChange={(e) => onToggleDmImage(e.target.checked)}
-                        disabled={!draft.dmEnabled}
+                        disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                       />
                     </label>
                   </div>
@@ -234,7 +234,7 @@ export function AutomationDialog({
                     <input
                       type="file"
                       accept="image/*"
-                      disabled={!draft.dmEnabled}
+                      disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                       onChange={(e) => onChangeDmImage(e.target.files?.[0] ?? null)}
                       className="block w-full text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border file:border-zinc-700 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-100"
                     />
@@ -254,7 +254,7 @@ export function AutomationDialog({
                         key={`dm-tab-${index}`}
                         type="button"
                         onClick={() => setDmTab(index)}
-                        disabled={!draft.dmEnabled}
+                        disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                         aria-current={isActive ? 'true' : undefined}
                         className={
                           isActive
@@ -273,7 +273,7 @@ export function AutomationDialog({
                       setDmTab(dmTemplates.length)
                       onAddDmTemplate()
                     }}
-                    disabled={!draft.dmEnabled}
+                    disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                     className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-300 hover:text-zinc-50 disabled:opacity-60"
                   >
                     + Add DM
@@ -288,7 +288,7 @@ export function AutomationDialog({
                         setDmTab(Math.max(0, nextIndex))
                         onRemoveDmTemplate(safeDmTab)
                       }}
-                      disabled={!draft.dmEnabled}
+                      disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                       className="rounded-full border border-zinc-800 bg-zinc-950 px-3 py-1 text-[11px] font-semibold text-zinc-400 hover:text-zinc-200 disabled:opacity-60"
                     >
                       Remove
@@ -303,7 +303,7 @@ export function AutomationDialog({
                   onChange={(e) => onChangeDmTemplate(safeDmTab, e.target.value)}
                   maxLength={dmLimit}
                   placeholder="Your DM message"
-                  disabled={!draft.dmEnabled}
+                  disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                 />
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
                   <span>Empty messages can’t be saved.</span>
@@ -323,7 +323,7 @@ export function AutomationDialog({
                           type="checkbox"
                           checked={draft.dmCtaEnabled}
                           onChange={(e) => onToggleDmCtaEnabled(e.target.checked)}
-                          disabled={!draft.dmEnabled}
+                          disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                         />
                       </label>
                     ) : null}
@@ -335,7 +335,7 @@ export function AutomationDialog({
                         value={draft.dmCtaGreeting}
                         onChange={(e) => onChangeDmCtaGreeting(e.target.value)}
                         placeholder="Thanks for your comment! Tap below to receive the messages."
-                        disabled={!draft.dmEnabled}
+                        disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                       />
                     </label>
                     <label className="grid gap-1">
@@ -347,7 +347,7 @@ export function AutomationDialog({
                         onChange={(e) => onChangeDmCtaText(e.target.value)}
                         maxLength={20}
                         placeholder="Send me the rest"
-                        disabled={!draft.dmEnabled}
+                        disabled={!draft.dmEnabled || !draft.dmImageEnabled}
                       />
                     </label>
                     <div className="text-[11px] text-amber-200/80">Max 20 characters. Shown as an Instagram quick reply.</div>
