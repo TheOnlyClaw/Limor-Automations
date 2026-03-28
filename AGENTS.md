@@ -12,6 +12,35 @@ This file gives repository-specific instructions to coding agents working in `li
 - Package manager is npm. Lockfile is `package-lock.json`.
 - Module system is ESM across the repo.
 
+## Design Context
+
+### Users
+
+- Primary audience is a single trusted operator managing Instagram automations for one account owner, not a broad self-serve SaaS audience.
+- User context is operational and repeat-use: checking connections, reviewing recent posts, and configuring replies and DMs without needing to think like a developer.
+- The core job to be done is to keep Instagram automation reliable, understandable, and low-stress.
+
+### Brand Personality
+
+- The product should feel calm, clear, and capable.
+- Voice and tone should be direct, steady, and reassuring rather than clever or salesy.
+- The emotional goal is calm confidence: the user should feel in control, safe making changes, and supported by a tool that quietly handles sensitive automation work.
+
+### Aesthetic Direction
+
+- Lean toward a minimal, quiet interface with dark mode as the primary design direction.
+- Preserve the current dark operational feel, but evolve it beyond a generic zinc-only treatment by introducing restrained warm accents and subtle Instagram-native cues where helpful.
+- Avoid dense enterprise-admin styling, generic startup dashboard polish, and loud neon or purple-heavy palettes.
+- Favor deliberate hierarchy, rounded forms, strong legibility, and simple layouts that feel personal rather than corporate.
+
+### Design Principles
+
+- Design for one non-technical trusted operator first: minimize cognitive load, surface only the controls that matter, and make every workflow easy to recover from.
+- Prioritize calm confidence over novelty: clear hierarchy, explicit states, predictable controls, and reassuring feedback should lead every screen.
+- Keep the visual language quiet but not sterile: mostly neutral dark surfaces, softened with warm accents instead of high-saturation or flashy effects.
+- Make automation status legible at a glance: connection health, post state, and action outcomes should be immediately scannable without requiring technical interpretation.
+- Treat accessibility as a baseline: meet WCAG AA contrast expectations, preserve keyboard usability, and avoid relying on color alone to communicate meaning.
+
 ## Repository Layout
 
 - `apps/web/src/`: React entrypoint, app shell, and Tailwind styles.
