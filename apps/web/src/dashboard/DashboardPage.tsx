@@ -46,6 +46,31 @@ function mediaPreviewUrl(p: InstagramPost): string | null {
   return p.thumbnailUrl ?? p.mediaUrl ?? null
 }
 
+function automationStatus(automation?: PostAutomation): 'active' | 'needs_message' | 'disabled' | 'off' {
+  const hasRules = Boolean(automation?.rules && automation.rules.length > 0)
+  const hasActions = Boolean(automation?.actions && automation.actions.length > 0)
+
+  if (!automation) return 'off'
+  if (automation.enabled && hasRules && hasActions) return 'active'
+  if (automation.enabled) return 'needs_message'
+  if (hasRules || hasActions) return 'disabled'
+  return 'off'
+}
+
+function automationStatusLabel(status: ReturnType<typeof automationStatus>) {
+  if (status === 'active') return 'Active'
+  if (status === 'needs_message') return 'Needs message'
+  if (status === 'disabled') return 'Disabled'
+  return 'Not listening'
+}
+
+function automationStatusClassName(status: ReturnType<typeof automationStatus>) {
+  if (status === 'active') return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100'
+  if (status === 'needs_message') return 'border-amber-400/20 bg-amber-500/10 text-amber-100'
+  if (status === 'disabled') return 'border-white/10 bg-white/[0.04] text-zinc-200'
+  return 'border-white/10 bg-white/[0.03] text-zinc-400'
+}
+
 type ListenerDraft = AutomationDraft
 
 export function DashboardPage({
@@ -325,6 +350,28 @@ export function DashboardPage({
 
   const activeConnection = connectionId ? connectionById[connectionId] : null
 
+  const postStats = useMemo(() => {
+    let active = 0
+    let needsAttention = 0
+    let failed = 0
+
+    for (const post of posts) {
+      const status = automationStatus(automationByPostId[post.id])
+      if (status === 'active') active += 1
+      if (status === 'needs_message' || (failedExecutionsByPostId[post.id]?.length ?? 0) > 0) {
+        needsAttention += 1
+      }
+      failed += failedExecutionsByPostId[post.id]?.length ?? 0
+    }
+
+    return {
+      totalPosts: posts.length,
+      active,
+      needsAttention,
+      failed,
+    }
+  }, [automationByPostId, failedExecutionsByPostId, posts])
+
   useEffect(() => {
     if (!connectionId || posts.length === 0) return
     void loadFailedExecutionsForPosts(posts)
@@ -550,17 +597,22 @@ export function DashboardPage({
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-zinc-950/70 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-2 text-sm text-zinc-300">Last 30 Instagram posts for the selected connection.</p>
+          <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-amber-100/80">
+            Automation overview
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">Dashboard</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
+            Review the latest 30 Instagram posts for the selected connection, then open any post to adjust its replies and DM flow.
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900 disabled:opacity-60"
+            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/[0.07] disabled:opacity-60"
             onClick={() => void loadConnections()}
             disabled={loadingConnections}
           >
@@ -568,7 +620,7 @@ export function DashboardPage({
           </button>
           <button
             type="button"
-            className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900 disabled:opacity-60"
+            className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/[0.07] disabled:opacity-60"
             onClick={() => (connectionId ? void loadAutomations(connectionId) : undefined)}
             disabled={!connectionId || loadingAutomations}
           >
@@ -576,7 +628,7 @@ export function DashboardPage({
           </button>
           <button
             type="button"
-            className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-100 disabled:opacity-60"
+            className="rounded-2xl bg-gradient-to-r from-amber-300 via-orange-300 to-pink-300 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:brightness-105 disabled:opacity-60"
             onClick={() => (connectionId ? void loadPosts(connectionId) : undefined)}
             disabled={!connectionId || loadingPosts}
           >
@@ -587,11 +639,34 @@ export function DashboardPage({
 
       {connectionError ? <InlineError message={connectionError} /> : null}
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Selected connection</div>
+          <div className="mt-2 text-lg font-semibold text-zinc-50">{activeConnection ? connectionLabel(activeConnection) : 'None selected'}</div>
+          <div className="mt-1 text-sm text-zinc-400">{activeConnection?.igUserId ? `IG User ID ${activeConnection.igUserId}` : 'Choose a connection to fetch posts.'}</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Posts loaded</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">{postStats.totalPosts}</div>
+          <div className="mt-1 text-sm text-zinc-400">Latest feed items currently available in the dashboard.</div>
+        </div>
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-emerald-100/70">Active automations</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-emerald-50">{postStats.active}</div>
+          <div className="mt-1 text-sm text-emerald-100/80">Posts already listening with rules and actions in place.</div>
+        </div>
+        <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-amber-100/70">Needs attention</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-amber-50">{postStats.needsAttention}</div>
+          <div className="mt-1 text-sm text-amber-100/80">Includes draft issues and {postStats.failed} failed execution{postStats.failed === 1 ? '' : 's'}.</div>
+        </div>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-3 rounded-[26px] border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-end sm:justify-between">
         <label className="grid gap-1">
-          <div className="text-xs text-zinc-400">Connection</div>
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Connection</div>
           <select
-            className="h-10 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 focus:border-zinc-600 focus:outline-none sm:min-w-[320px]"
+            className="h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/80 px-4 text-sm text-zinc-50 focus:border-amber-300/40 focus:outline-none sm:min-w-[320px]"
             value={connectionId}
             onChange={(e) => setConnectionId(e.target.value)}
             disabled={loadingConnections || connections.length === 0}
@@ -605,10 +680,10 @@ export function DashboardPage({
           </select>
         </label>
 
-        <div className="text-xs text-zinc-500">
+        <div className="rounded-2xl border border-white/10 bg-zinc-950/60 px-4 py-3 text-xs text-zinc-400">
           {activeConnection ? (
             <span>
-              IG User ID: <span className="text-zinc-300">{activeConnection.igUserId ?? '—'}</span>
+              IG User ID: <span className="text-zinc-200">{activeConnection.igUserId ?? '—'}</span>
             </span>
           ) : (
             <span>Select a connection to load posts.</span>
@@ -617,13 +692,13 @@ export function DashboardPage({
       </div>
 
       {connections.length === 0 && !loadingConnections ? (
-        <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-300">
           <div className="font-medium text-zinc-50">No connections yet</div>
-          <div className="mt-1">Add an Instagram connection in Settings to fetch posts.</div>
+          <div className="mt-1 leading-6">Add an Instagram connection in Settings to fetch posts.</div>
           <div className="mt-3">
             <button
               type="button"
-              className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-100"
+              className="rounded-2xl bg-gradient-to-r from-amber-300 via-orange-300 to-pink-300 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:brightness-105"
               onClick={onGoToSettings}
             >
               Go to Settings
@@ -636,13 +711,22 @@ export function DashboardPage({
       {automationsError ? <InlineError message={automationsError} /> : null}
 
       {connectionId && !loadingPosts && posts.length === 0 && !postsError ? (
-        <div className="mt-6 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+        <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-300">
           No posts returned for this connection.
         </div>
       ) : null}
 
       {loadingPosts && connectionId ? (
-        <div className="mt-6 text-sm text-zinc-400">Loading posts…</div>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="animate-pulse overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03] p-3">
+              <div className="aspect-square rounded-2xl bg-white/[0.05]" />
+              <div className="mt-3 h-4 w-2/5 rounded-full bg-white/[0.05]" />
+              <div className="mt-2 h-3 w-full rounded-full bg-white/[0.05]" />
+              <div className="mt-2 h-3 w-4/5 rounded-full bg-white/[0.05]" />
+            </div>
+          ))}
+        </div>
       ) : null}
 
       {posts.length > 0 ? (
@@ -650,24 +734,12 @@ export function DashboardPage({
           {posts.map((p) => {
             const preview = mediaPreviewUrl(p)
             const a = automationByPostId[p.id]
-            const hasRules = Boolean(a?.rules && a.rules.length > 0)
-            const hasActions = Boolean(a?.actions && a.actions.length > 0)
-            const status: 'active' | 'needs_message' | 'disabled' | 'off' = a
-              ? a.enabled
-                ? hasRules
-                  ? hasActions
-                    ? 'active'
-                    : 'needs_message'
-                  : 'needs_message'
-                : hasRules || hasActions
-                  ? 'disabled'
-                  : 'off'
-              : 'off'
+            const status = automationStatus(a)
             const failedCount = failedExecutionsByPostId[p.id]?.length ?? 0
             return (
               <div
                 key={p.id}
-                className="group overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 hover:border-zinc-700"
+                className="group overflow-hidden rounded-[26px] border border-white/10 bg-white/[0.03] shadow-[0_16px_40px_rgba(0,0,0,0.24)] transition hover:-translate-y-0.5 hover:border-amber-300/20 hover:bg-white/[0.05]"
               >
                 <a
                   href={p.permalink ?? '#'}
@@ -678,7 +750,7 @@ export function DashboardPage({
                     if (!p.permalink) e.preventDefault()
                   }}
                 >
-                  <div className="aspect-square w-full bg-gradient-to-br from-zinc-900 to-zinc-950">
+                  <div className="aspect-square w-full bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900">
                     {preview ? (
                       <img
                         src={preview}
@@ -690,9 +762,9 @@ export function DashboardPage({
                   </div>
                 </a>
 
-                <div className="p-3">
+                <div className="p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="rounded-full border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-[11px] text-zinc-300">
+                    <div className="rounded-full border border-white/10 bg-zinc-950/80 px-2.5 py-1 text-[11px] uppercase tracking-[0.16em] text-zinc-300">
                       {p.mediaType}
                     </div>
                     <div className="flex items-center gap-2">
@@ -704,7 +776,7 @@ export function DashboardPage({
                           href={p.permalink}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-[11px] text-zinc-300 hover:text-zinc-50"
+                          className="text-[11px] text-zinc-300 transition hover:text-amber-100"
                         >
                           Open
                         </a>
@@ -714,29 +786,15 @@ export function DashboardPage({
 
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <div
-                      className={
-                        status === 'active'
-                          ? 'rounded-full border border-emerald-900/60 bg-emerald-950/30 px-2 py-0.5 text-[11px] text-emerald-200'
-                          : status === 'needs_message'
-                            ? 'rounded-full border border-amber-900/60 bg-amber-950/25 px-2 py-0.5 text-[11px] text-amber-200'
-                            : status === 'disabled'
-                              ? 'rounded-full border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-[11px] text-zinc-300'
-                              : 'rounded-full border border-zinc-800 bg-zinc-950 px-2 py-0.5 text-[11px] text-zinc-400'
-                      }
+                      className={`rounded-full border px-2.5 py-1 text-[11px] ${automationStatusClassName(status)}`}
                       title={a?.rules?.[0]?.pattern ?? ''}
                     >
-                      {status === 'active'
-                        ? 'Active'
-                        : status === 'needs_message'
-                          ? 'Needs message'
-                          : status === 'disabled'
-                            ? 'Disabled'
-                            : 'Not listening'}
+                      {automationStatusLabel(status)}
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        className="relative flex h-6 w-6 items-center justify-center rounded-full border border-red-700/60 bg-red-600/15 text-[12px] font-semibold text-red-200 hover:bg-red-600/25"
+                        className="relative flex h-7 w-7 items-center justify-center rounded-full border border-red-400/20 bg-red-500/10 text-[12px] font-semibold text-red-100 transition hover:bg-red-500/20"
                         onClick={() => {
                           setFailedExecutionsPostId(p.id)
                           void loadFailedExecutions(p.id)
@@ -753,7 +811,7 @@ export function DashboardPage({
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1 text-[11px] text-zinc-200 hover:bg-zinc-900"
+                        className="rounded-xl border border-white/10 bg-zinc-950/80 px-3 py-1.5 text-[11px] font-medium text-zinc-200 transition hover:bg-white/[0.06]"
                         onClick={() => {
                           setConfigPostId(p.id)
                         }}
@@ -763,7 +821,7 @@ export function DashboardPage({
                     </div>
                   </div>
 
-                  <div className="mt-2 truncate text-xs text-zinc-300" title={p.caption ?? ''}>
+                  <div className="mt-3 truncate text-xs leading-5 text-zinc-300" title={p.caption ?? ''}>
                     {p.caption ?? '—'}
                   </div>
                 </div>

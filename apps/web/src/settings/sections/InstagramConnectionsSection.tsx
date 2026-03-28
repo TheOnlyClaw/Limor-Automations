@@ -206,18 +206,21 @@ export function InstagramConnectionsSection() {
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]">
-      <div className="flex items-start justify-between gap-4">
+    <section className="overflow-hidden rounded-[30px] border border-white/10 bg-zinc-950/70 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl sm:p-7">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Instagram Connections</h1>
-          <p className="mt-2 max-w-2xl text-sm text-zinc-300">
+          <div className="inline-flex rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs uppercase tracking-[0.2em] text-amber-100/80">
+            Connection settings
+          </div>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-zinc-50 sm:text-3xl">Instagram Connections</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
             Connections are stored in Supabase under the signed-in user. Raw access tokens are only entered during create or replace and are never shown back in the UI.
           </p>
         </div>
 
         <button
           type="button"
-          className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900 disabled:opacity-60"
+          className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/[0.07] disabled:opacity-60"
           onClick={() => void load()}
           disabled={loading}
         >
@@ -227,14 +230,36 @@ export function InstagramConnectionsSection() {
 
       {globalError ? <InlineError message={globalError} /> : null}
 
+      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Connections</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">{connections.length}</div>
+          <div className="mt-1 text-sm text-zinc-400">Profiles currently available for post sync and automation setup.</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-zinc-500">Stored tokens</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-zinc-50">
+            {connections.filter((connection) => connection.hasStoredAccessToken).length}
+          </div>
+          <div className="mt-1 text-sm text-zinc-400">Connections with a token already stored server-side.</div>
+        </div>
+        <div className="rounded-2xl border border-amber-400/15 bg-amber-500/10 p-4">
+          <div className="text-xs uppercase tracking-[0.18em] text-amber-100/70">Attention needed</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-amber-50">
+            {connections.filter((connection) => connection.refreshError || connection.connectionStatus !== 'active').length}
+          </div>
+          <div className="mt-1 text-sm text-amber-100/80">Connections that may need a refresh, resolve, or token replacement.</div>
+        </div>
+      </div>
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
-          <div className="text-sm font-semibold">Add connection</div>
+        <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
+          <div className="text-sm font-semibold text-zinc-50">Add connection</div>
           <form className="mt-4 grid gap-3" onSubmit={onCreateSubmit}>
             <label className="grid gap-1">
-              <div className="text-xs text-zinc-400">Label (optional)</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Label (optional)</div>
               <input
-                className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                className="h-12 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-300/40 focus:outline-none"
                 value={createLabel}
                 onChange={(e) => setCreateLabel(e.target.value)}
                 maxLength={120}
@@ -244,9 +269,9 @@ export function InstagramConnectionsSection() {
             </label>
 
             <label className="grid gap-1">
-              <div className="text-xs text-zinc-400">Access token</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Access token</div>
               <textarea
-                className="min-h-24 resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                className="min-h-28 resize-y rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-300/40 focus:outline-none"
                 value={createAccessToken}
                 onChange={(e) => setCreateAccessToken(e.target.value)}
                 placeholder="Paste long-lived Instagram token…"
@@ -255,9 +280,9 @@ export function InstagramConnectionsSection() {
             </label>
 
             <label className="grid gap-1">
-              <div className="text-xs text-zinc-400">IG User ID (optional)</div>
+              <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">IG User ID (optional)</div>
               <input
-                className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                className="h-12 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-amber-300/40 focus:outline-none"
                 value={createIgUserId}
                 onChange={(e) => setCreateIgUserId(e.target.value)}
                 placeholder="e.g. 1784…"
@@ -265,7 +290,7 @@ export function InstagramConnectionsSection() {
               />
             </label>
 
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-6 text-zinc-400">
               Refresh, resolve IDs, and secure server-side token workflows run through Supabase Edge Functions. This screen uses Supabase Auth and user-scoped storage.
             </div>
 
@@ -273,7 +298,7 @@ export function InstagramConnectionsSection() {
               <div className="text-xs text-zinc-500">Never stored in localStorage or URLs.</div>
               <button
                 type="submit"
-                className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-100 disabled:opacity-60"
+                className="rounded-2xl bg-gradient-to-r from-amber-300 via-orange-300 to-pink-300 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:brightness-105 disabled:opacity-60"
                 disabled={createBusy}
               >
                 {createBusy ? 'Saving…' : 'Create'}
@@ -283,14 +308,14 @@ export function InstagramConnectionsSection() {
           </form>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+        <div className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5">
           <div className="flex items-center justify-between gap-4">
-            <div className="text-sm font-semibold">Connections</div>
+            <div className="text-sm font-semibold text-zinc-50">Connections</div>
             <div className="text-xs text-zinc-500">{connections.length ? `${connections.length} total` : 'None yet'}</div>
           </div>
 
           {!connections.length && !loading ? (
-            <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">
+            <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-950/70 p-4 text-sm text-zinc-300">
               Add your first connection to start managing automations.
             </div>
           ) : null}
@@ -299,13 +324,13 @@ export function InstagramConnectionsSection() {
             {connections.map((connection) => {
               const isDeleting = deletingId === connection.id
               return (
-                <div key={connection.id} className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
+                <div key={connection.id} className="rounded-[24px] border border-white/10 bg-zinc-950/70 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.2)]">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
                       <div className="text-sm font-semibold text-zinc-50">{connection.label ?? 'Untitled connection'}</div>
                       <div className="mt-1 text-xs text-zinc-500">{connection.id}</div>
                     </div>
-                    <div className="rounded-full border border-zinc-800 bg-zinc-900 px-2.5 py-1 text-xs text-zinc-300">
+                    <div className="rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs text-zinc-300">
                       {connection.connectionStatus}
                     </div>
                   </div>
@@ -346,7 +371,7 @@ export function InstagramConnectionsSection() {
                   <div className="mt-4 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-900 disabled:opacity-60"
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.07] disabled:opacity-60"
                       onClick={() => void onResolve(connection)}
                       disabled={resolvingId === connection.id || refreshingId === connection.id}
                     >
@@ -354,7 +379,7 @@ export function InstagramConnectionsSection() {
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-900 disabled:opacity-60"
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.07] disabled:opacity-60"
                       onClick={() => void onRefresh(connection)}
                       disabled={refreshingId === connection.id || resolvingId === connection.id}
                     >
@@ -362,7 +387,7 @@ export function InstagramConnectionsSection() {
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-200 hover:bg-zinc-900"
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-zinc-200 transition hover:bg-white/[0.07]"
                       onClick={() => openEdit(connection)}
                     >
                       Edit
@@ -387,8 +412,8 @@ export function InstagramConnectionsSection() {
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/60" onClick={() => setEditingId(null)} />
           <div className="absolute inset-0 flex items-start justify-center p-4 sm:items-center">
-            <div className="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
+            <div className="w-full max-w-xl rounded-[28px] border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <div className="text-sm font-semibold">Edit connection</div>
                 <button
                   type="button"
@@ -400,14 +425,14 @@ export function InstagramConnectionsSection() {
               </div>
 
               <div className="grid gap-3 px-5 py-4">
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-xs text-zinc-400">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-xs leading-6 text-zinc-400">
                   Stored tokens are intentionally not displayed. Paste a new one only if you want to replace it.
                 </div>
 
                 <label className="grid gap-1">
-                  <div className="text-xs text-zinc-400">Label (blank clears)</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Label (blank clears)</div>
                   <input
-                    className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 focus:border-zinc-600 focus:outline-none"
+                    className="h-12 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 text-sm text-zinc-50 focus:border-amber-300/40 focus:outline-none"
                     value={editLabel}
                     onChange={(e) => setEditLabel(e.target.value)}
                     maxLength={120}
@@ -415,18 +440,18 @@ export function InstagramConnectionsSection() {
                 </label>
 
                 <label className="grid gap-1">
-                  <div className="text-xs text-zinc-400">IG User ID (blank clears)</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">IG User ID (blank clears)</div>
                   <input
-                    className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 focus:border-zinc-600 focus:outline-none"
+                    className="h-12 rounded-2xl border border-white/10 bg-zinc-950/80 px-4 text-sm text-zinc-50 focus:border-amber-300/40 focus:outline-none"
                     value={editIgUserId}
                     onChange={(e) => setEditIgUserId(e.target.value)}
                   />
                 </label>
 
                 <label className="grid gap-1">
-                  <div className="text-xs text-zinc-400">Replace access token (optional)</div>
+                  <div className="text-xs uppercase tracking-[0.16em] text-zinc-500">Replace access token (optional)</div>
                   <textarea
-                    className="min-h-20 resize-y rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-50 focus:border-zinc-600 focus:outline-none"
+                    className="min-h-24 resize-y rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-sm text-zinc-50 focus:border-amber-300/40 focus:outline-none"
                     value={editAccessToken}
                     onChange={(e) => setEditAccessToken(e.target.value)}
                     placeholder="Paste a new token only if needed…"
@@ -436,7 +461,7 @@ export function InstagramConnectionsSection() {
                 <div className="flex items-center justify-between gap-3 pt-2">
                   <button
                     type="button"
-                    className="rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-100 hover:bg-zinc-900"
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-100 transition hover:bg-white/[0.07]"
                     onClick={() => setEditingId(null)}
                     disabled={savingEdit}
                   >
@@ -444,7 +469,7 @@ export function InstagramConnectionsSection() {
                   </button>
                   <button
                     type="button"
-                    className="rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-zinc-100 disabled:opacity-60"
+                    className="rounded-2xl bg-gradient-to-r from-amber-300 via-orange-300 to-pink-300 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:brightness-105 disabled:opacity-60"
                     onClick={() => void onSaveEdit()}
                     disabled={savingEdit}
                   >
