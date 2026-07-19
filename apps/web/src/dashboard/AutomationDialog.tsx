@@ -456,7 +456,6 @@ export function AutomationDialog({
                     <button
                       type="button"
                       onClick={() => onChangeDmMediaKind('image')}
-                      disabled={!draft.dmEnabled}
                       className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                         draft.dmMediaKind !== 'video'
                           ? 'bg-zinc-800 text-zinc-100 shadow-sm'
@@ -468,7 +467,6 @@ export function AutomationDialog({
                     <button
                       type="button"
                       onClick={() => onChangeDmMediaKind('video')}
-                      disabled={!draft.dmEnabled}
                       className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                         draft.dmMediaKind === 'video'
                           ? 'bg-zinc-800 text-zinc-100 shadow-sm'
