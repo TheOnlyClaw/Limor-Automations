@@ -2,7 +2,7 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { corsHeaders, errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts'
 import { decryptString } from '../_shared/crypto.ts'
 import { generateGeminiVariant } from '../_shared/gemini.ts'
-import { sendCommentReply, sendDm, sendDmWithImage, sendRecipientDm, sendRecipientDmWithImage } from '../_shared/instagramActions.ts'
+import { sendCommentReply, sendDm, sendDmWithImage, sendRecipientDm, sendRecipientDmWithImage, sendRecipientDmWithVideo } from '../_shared/instagramActions.ts'
 import { GraphError } from '../_shared/instagramGraph.ts'
 import { createAdminClient } from '../_shared/supabase.ts'
 import { extractCommentEvent, isReplyComment, isSelfComment, type ParsedCommentEvent } from '../_shared/webhook.ts'
@@ -37,6 +37,11 @@ type ActionRow = {
   sort_order: number
   cta_text: string | null
   created_at: string
+  media_kind: string | null
+  media_bucket: string | null
+  media_path: string | null
+  media_url: string | null
+  media_enabled: boolean | null
 }
 
 type ExecutionInsertRow = {
@@ -812,7 +817,7 @@ Deno.serve(async (req) => {
 
     const { data: actions, error: actionsError } = await admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path, media_enabled')
+      .select('id, automation_id, type, template, use_ai, sort_order, created_at, cta_text, media_kind, media_bucket, media_path, media_url, media_enabled')
       .eq('automation_id', cta.automationId)
       .order('sort_order', { ascending: true })
 
@@ -849,6 +854,7 @@ Deno.serve(async (req) => {
       const mediaKind = !mediaSent ? ((action as any).media_kind as string | null | undefined) : null
       const mediaBucket = !mediaSent ? ((action as any).media_bucket as string | null | undefined) : null
       const mediaPath = !mediaSent ? ((action as any).media_path as string | null | undefined) : null
+      const mediaUrl = !mediaSent ? ((action as any).media_url as string | null | undefined) : null
 
       try {
         const { data: existingExec, error: existingExecError } = await admin
@@ -873,6 +879,7 @@ Deno.serve(async (req) => {
 
         const mediaEnabled = Boolean((action as unknown as { media_enabled?: boolean | null }).media_enabled ?? false)
         const hasImage = mediaEnabled && mediaKind === 'image' && !!mediaBucket && !!mediaPath
+        const hasVideo = mediaEnabled && mediaKind === 'video' && !!mediaUrl
 
         if (hasImage) {
           try {
@@ -905,6 +912,39 @@ Deno.serve(async (req) => {
             mediaSent = true
           } catch (mediaErr) {
             console.warn('CTA DM image send failed; falling back to text-only', mediaErr)
+            if (actionText) {
+              await sendRecipientDm({
+                accessToken,
+                senderIgUserId: connectionRow.ig_user_id,
+                recipientId,
+                message: actionText,
+              })
+            }
+          }
+        } else if (hasVideo) {
+          try {
+            // 1) Send video via direct URL (no storage signed URL needed)
+            await sendRecipientDmWithVideo({
+              accessToken,
+              senderIgUserId: connectionRow.ig_user_id,
+              recipientId,
+              videoUrl: mediaUrl!,
+            })
+
+            // 2) Then send the configured DM message
+            if (actionText) {
+              await sendRecipientDm({
+                accessToken,
+                senderIgUserId: connectionRow.ig_user_id,
+                recipientId,
+                message: actionText,
+              })
+            }
+
+            // Mark this media as consumed so subsequent DM actions won't resend it.
+            mediaSent = true
+          } catch (mediaErr) {
+            console.warn('CTA DM video send failed; falling back to text-only', mediaErr)
             if (actionText) {
               await sendRecipientDm({
                 accessToken,
@@ -1002,7 +1042,7 @@ Deno.serve(async (req) => {
       .in('automation_id', automationIds),
     admin
       .from('automation_actions')
-      .select('id, automation_id, type, template, use_ai, sort_order, cta_text, created_at')
+      .select('id, automation_id, type, template, use_ai, sort_order, cta_text, media_kind, media_bucket, media_path, media_url, media_enabled, created_at')
       .in('automation_id', automationIds),
   ])
 
