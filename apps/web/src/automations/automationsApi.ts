@@ -14,7 +14,7 @@ const automationSelect = [
   'created_at',
   'updated_at',
   'automation_rules(id, pattern, flags, created_at)',
-  'automation_actions(id, type, template, use_ai, sort_order, cta_text, media_kind, media_bucket, media_path, media_enabled, created_at)',
+  'automation_actions(id, type, template, use_ai, sort_order, cta_text, media_kind, media_bucket, media_path, media_url, media_enabled, created_at)',
 ].join(', ')
 
 type RpcClient = {
@@ -33,9 +33,10 @@ type ActionInput = Array<{
   template: string
   useAi?: boolean
   ctaText?: string | null
-  mediaKind?: 'image' | null
+  mediaKind?: 'image' | 'video' | null
   mediaBucket?: string | null
   mediaPath?: string | null
+  mediaUrl?: string | null
   mediaEnabled?: boolean
 }>
 
