@@ -13,9 +13,10 @@ export type AutomationAction = {
   template: string
   useAi: boolean
   ctaText: string | null
-  mediaKind: 'image' | null
+  mediaKind: 'image' | 'video' | null
   mediaBucket: string | null
   mediaPath: string | null
+  mediaUrl: string | null
   mediaEnabled: boolean
   sortOrder: number
   createdAt: string
@@ -73,9 +74,10 @@ export function toPostAutomation(row: AutomationBundleRow): PostAutomation {
         template: action.template,
         useAi: Boolean(action.use_ai),
         ctaText: action.cta_text ?? null,
-        mediaKind: (action as unknown as { media_kind?: 'image' | null }).media_kind ?? null,
+        mediaKind: (action as unknown as { media_kind?: 'image' | 'video' | null }).media_kind ?? null,
         mediaBucket: (action as unknown as { media_bucket?: string | null }).media_bucket ?? null,
         mediaPath: (action as unknown as { media_path?: string | null }).media_path ?? null,
+        mediaUrl: (action as unknown as { media_url?: string | null }).media_url ?? null,
         mediaEnabled: Boolean((action as unknown as { media_enabled?: boolean | null; media_path?: string | null }).media_enabled ?? (action as unknown as { media_path?: string | null }).media_path),
         sortOrder: action.sort_order ?? 0,
         createdAt: action.created_at,

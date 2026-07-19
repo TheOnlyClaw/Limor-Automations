@@ -215,6 +215,7 @@ export function DashboardPage({
               dmMediaKind: base.dmMediaKind,
               dmMediaBucket: base.dmMediaBucket,
               dmMediaPath: base.dmMediaPath,
+              dmMediaUrl: base.dmMediaUrl,
               dmImageEnabled: base.dmImageEnabled,
               dmCtaText: base.dmCtaText,
               dmCtaGreeting: base.dmCtaGreeting,
@@ -250,6 +251,7 @@ export function DashboardPage({
             dmMediaKind: base.dmMediaKind,
             dmMediaBucket: base.dmMediaBucket,
             dmMediaPath: base.dmMediaPath,
+            dmMediaUrl: base.dmMediaUrl,
             dmImageEnabled: base.dmImageEnabled,
             dmCtaText: base.dmCtaText,
             dmCtaGreeting: base.dmCtaGreeting,
@@ -1125,6 +1127,22 @@ export function DashboardPage({
                 : m[configPostId],
             }))
           }
+        }}
+        onChangeDmVideoUrl={(dmMediaUrl: string) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmMediaKind: dmMediaUrl.trim() ? 'video' : null,
+                  dmMediaUrl,
+                  dmImageEnabled: dmMediaUrl.trim() ? true : m[configPostId]!.dmImageEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
         }}
         onChangeDmCtaText={(dmCtaText) => {
           if (!configPostId) return

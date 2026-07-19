@@ -11,9 +11,10 @@ export type AutomationDraft = {
   dmEnabled: boolean
   dmImageEnabled: boolean
   dmTemplates: string[]
-  dmMediaKind: 'image' | null
+  dmMediaKind: 'image' | 'video' | null
   dmMediaBucket: string | null
   dmMediaPath: string | null
+  dmMediaUrl: string
   dmCtaText: string
   dmCtaGreeting: string
   dmCtaEnabled: boolean
@@ -38,6 +39,7 @@ export function automationToDraftFields(
   | 'dmMediaKind'
   | 'dmMediaBucket'
   | 'dmMediaPath'
+  | 'dmMediaUrl'
   | 'dmCtaText'
   | 'dmCtaGreeting'
   | 'dmCtaEnabled'
@@ -50,10 +52,13 @@ export function automationToDraftFields(
   const replyEnabled = replyTemplates.some((template) => template.trim().length > 0)
   const dmEnabled = dmTemplates.some((template) => template.trim().length > 0)
   const firstDm = dmActions[0]
-  const dmImageEnabled = Boolean((firstDm as { mediaEnabled?: boolean | null } | undefined)?.mediaEnabled ?? firstDm?.mediaPath)
-  const dmMediaKind = (firstDm as { mediaKind?: 'image' | null } | undefined)?.mediaKind ?? null
+  const dmMediaKind = (firstDm as { mediaKind?: 'image' | 'video' | null } | undefined)?.mediaKind ?? null
   const dmMediaBucket = firstDm?.mediaBucket ?? null
   const dmMediaPath = firstDm?.mediaPath ?? null
+  const dmMediaUrl = (firstDm as { mediaUrl?: string | null } | undefined)?.mediaUrl ?? ''
+  const dmImageEnabled = dmMediaKind === 'video'
+    ? Boolean((firstDm as { mediaUrl?: string | null } | undefined)?.mediaUrl)
+    : Boolean((firstDm as { mediaEnabled?: boolean | null } | undefined)?.mediaEnabled ?? firstDm?.mediaPath)
   const dmCtaText = a?.dmCtaText ?? ''
   const dmCtaGreeting = a?.dmCtaGreeting ?? ''
   const dmCtaEnabled = Boolean(a?.dmCtaEnabled)
@@ -72,6 +77,7 @@ export function automationToDraftFields(
     dmMediaKind,
     dmMediaBucket,
     dmMediaPath,
+    dmMediaUrl,
     dmCtaText,
     dmCtaGreeting,
     dmCtaEnabled,
@@ -80,7 +86,7 @@ export function automationToDraftFields(
 
 export function draftToRulesActions(draft: AutomationDraft): {
   rules: Array<{ pattern: string; flags?: string }>
-  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaEnabled?: boolean }>
+  actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | 'video' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaUrl?: string | null; mediaEnabled?: boolean }>
 } {
   const pattern = draft.pattern.trim()
   const flags = draft.flags.trim()
@@ -89,7 +95,7 @@ export function draftToRulesActions(draft: AutomationDraft): {
 
   const rules = pattern.length ? [{ pattern, ...(flags.length ? { flags } : {}) }] : []
 
-  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaEnabled?: boolean }> = []
+  const actions: Array<{ type: 'reply' | 'dm'; template: string; useAi: boolean; mediaKind?: 'image' | 'video' | null; mediaBucket?: string | null; mediaPath?: string | null; mediaUrl?: string | null; mediaEnabled?: boolean }> = []
   if (draft.replyEnabled) {
     replyMessages.forEach((message) => {
       actions.push({ type: 'reply', template: message, useAi: draft.replyUseAi })
@@ -101,9 +107,10 @@ export function draftToRulesActions(draft: AutomationDraft): {
         type: 'dm'
         template: string
         useAi: boolean
-        mediaKind?: 'image' | null
+        mediaKind?: 'image' | 'video' | null
         mediaBucket?: string | null
         mediaPath?: string | null
+        mediaUrl?: string | null
         mediaEnabled?: boolean
       } = {
         type: 'dm',
@@ -114,8 +121,11 @@ export function draftToRulesActions(draft: AutomationDraft): {
         mediaKind: draft.dmMediaKind ?? null,
         mediaBucket: draft.dmMediaBucket ?? null,
         mediaPath: draft.dmMediaPath ?? null,
+        mediaUrl: draft.dmMediaUrl || null,
         // This is the actual "send attachment" switch.
-        mediaEnabled: Boolean(draft.dmImageEnabled),
+        mediaEnabled: draft.dmMediaKind === 'video'
+          ? Boolean(draft.dmMediaUrl)
+          : Boolean(draft.dmImageEnabled),
       }
       actions.push(action)
     })
