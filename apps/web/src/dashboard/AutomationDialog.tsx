@@ -120,6 +120,7 @@ export function AutomationDialog({
   onRemoveDmTemplate: (index: number) => void
   onChangeDmImage: (file: File | null) => void
   onToggleDmImage: (enabled: boolean) => void
+  onChangeDmVideoUrl: (url: string) => void
   onChangeDmCtaText: (ctaText: string) => void
   onChangeDmCtaGreeting: (ctaGreeting: string) => void
   onToggleDmCtaEnabled: (enabled: boolean) => void
