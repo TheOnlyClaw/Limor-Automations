@@ -95,6 +95,7 @@ export function AutomationDialog({
   onRemoveDmTemplate,
   onChangeDmImage,
   onToggleDmImage,
+  onChangeDmMediaKind,
   onChangeDmVideoUrl,
   onChangeDmCtaText,
   onChangeDmCtaGreeting,
@@ -120,6 +121,7 @@ export function AutomationDialog({
   onRemoveDmTemplate: (index: number) => void
   onChangeDmImage: (file: File | null) => void
   onToggleDmImage: (enabled: boolean) => void
+  onChangeDmMediaKind: (kind: 'image' | 'video') => void
   onChangeDmVideoUrl: (url: string) => void
   onChangeDmCtaText: (ctaText: string) => void
   onChangeDmCtaGreeting: (ctaGreeting: string) => void
@@ -453,7 +455,7 @@ export function AutomationDialog({
                   <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 p-0.5">
                     <button
                       type="button"
-                      onClick={() => onChangeDmVideoUrl('')}
+                      onClick={() => onChangeDmMediaKind('image')}
                       disabled={!draft.dmEnabled}
                       className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                         draft.dmMediaKind !== 'video'
@@ -465,14 +467,7 @@ export function AutomationDialog({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        // Switch to video mode — clear image selection
-                        onChangeDmImage(null)
-                        // If no URL yet, set a starting value so dmMediaKind becomes 'video'
-                        if (!draft.dmMediaUrl.trim()) {
-                          onChangeDmVideoUrl('')
-                        }
-                      }}
+                      onClick={() => onChangeDmMediaKind('video')}
                       disabled={!draft.dmEnabled}
                       className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
                         draft.dmMediaKind === 'video'
