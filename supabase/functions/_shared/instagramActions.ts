@@ -108,3 +108,48 @@ export async function sendRecipientDmWithImage(args: {
     },
   })
 }
+
+export async function sendDmWithVideo(args: {
+  accessToken: string
+  senderIgUserId: string
+  commentId: string
+  videoUrl: string
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+  return graphPostJson(url.toString(), {
+    recipient: { comment_id: args.commentId },
+    message: {
+      attachment: {
+        type: 'video',
+        payload: {
+          url: args.videoUrl,
+          is_reusable: true,
+        },
+      },
+    },
+  })
+}
+
+export async function sendRecipientDmWithVideo(args: {
+  accessToken: string
+  senderIgUserId: string
+  recipientId: string
+  videoUrl: string
+}) {
+  const url = new URL(`https://graph.instagram.com/${graphVersion()}/${args.senderIgUserId}/messages`)
+  url.searchParams.set('access_token', args.accessToken)
+
+  return graphPostJson(url.toString(), {
+    recipient: { id: args.recipientId },
+    message: {
+      attachment: {
+        type: 'video',
+        payload: {
+          url: args.videoUrl,
+          is_reusable: true,
+        },
+      },
+    },
+  })
+}
