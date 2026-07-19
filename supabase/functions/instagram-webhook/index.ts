@@ -544,14 +544,53 @@ async function processExecutions(args: {
         if (!args.connection.ig_user_id) {
           throw new Error('Missing sender ig_user_id on connection (run resolve-connection)')
         }
-        // Zero images pre-CTA: "private reply" DMs (comment_id) are always text-only.
-        // Media is only sent in the post-CTA phase (recipient.id).
-        await sendDm({
-          accessToken,
-          senderIgUserId: args.connection.ig_user_id,
-          commentId: args.parsed.commentId,
-          message: messageText,
-        })
+
+        const dmAction = execution.action
+        const actionMediaKind = (dmAction as unknown as { media_kind?: string | null }).media_kind ?? null
+        const actionMediaUrl = (dmAction as unknown as { media_url?: string | null }).media_url ?? null
+        const actionMediaEnabled = Boolean((dmAction as unknown as { media_enabled?: boolean | null }).media_enabled ?? false)
+        const actionHasVideo = actionMediaEnabled && actionMediaKind === 'video' && !!actionMediaUrl
+
+        // If we have a video configured and the commenter's IG user ID is available,
+        // send the video via direct DM (recipient.id) instead of private reply (comment_id).
+        // Private replies via comment_id do not support media attachments.
+        if (actionHasVideo && args.parsed.fromId) {
+          // Send video first
+          try {
+            await sendRecipientDmWithVideo({
+              accessToken,
+              senderIgUserId: args.connection.ig_user_id,
+              recipientId: args.parsed.fromId,
+              videoUrl: actionMediaUrl!,
+            })
+            // Then send the message text
+            if (messageText) {
+              await sendRecipientDm({
+                accessToken,
+                senderIgUserId: args.connection.ig_user_id,
+                recipientId: args.parsed.fromId,
+                message: messageText,
+              })
+            }
+          } catch (mediaErr) {
+            console.warn('Pre-CTA DM video send failed; falling back to text-only private reply', mediaErr)
+            await sendDm({
+              accessToken,
+              senderIgUserId: args.connection.ig_user_id,
+              commentId: args.parsed.commentId,
+              message: messageText,
+            })
+          }
+        } else {
+          // Zero images pre-CTA: "private reply" DMs (comment_id) are always text-only.
+          // Media is only sent in the post-CTA phase (recipient.id).
+          await sendDm({
+            accessToken,
+            senderIgUserId: args.connection.ig_user_id,
+            commentId: args.parsed.commentId,
+            message: messageText,
+          })
+        }
       }
 
       if (!shouldGate) {
