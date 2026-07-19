@@ -95,6 +95,7 @@ export function AutomationDialog({
   onRemoveDmTemplate,
   onChangeDmImage,
   onToggleDmImage,
+  onChangeDmVideoUrl,
   onChangeDmCtaText,
   onChangeDmCtaGreeting,
   onToggleDmCtaEnabled,
@@ -435,44 +436,108 @@ export function AutomationDialog({
                 </div>
                 <div className="mt-4 grid gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[11px] font-semibold text-zinc-200">Optional image</div>
+                    <div className="text-[11px] font-semibold text-zinc-200">Optional media</div>
                     <label className="flex items-center gap-2 text-[11px] text-zinc-300">
-                      <span>Send image</span>
+                      <span>Send media</span>
                       <Toggle
                         checked={draft.dmImageEnabled}
                         onChange={onToggleDmImage}
                         disabled={!draft.dmEnabled}
-                        label="Send image before the DM"
+                        label="Send media before the DM"
                       />
                     </label>
                   </div>
-                  <div className="text-[11px] text-zinc-500">
-                    We send the image first. If Instagram does not allow an image here, we send only the text instead. Max size: 4 MB.
+
+                  {/* Media mode tabs */}
+                  <div className="flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 p-0.5">
+                    <button
+                      type="button"
+                      onClick={() => onChangeDmVideoUrl('')}
+                      disabled={!draft.dmEnabled}
+                      className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+                        draft.dmMediaKind !== 'video'
+                          ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Switch to video mode — clear image selection
+                        onChangeDmImage(null)
+                        // If no URL yet, set a starting value so dmMediaKind becomes 'video'
+                        if (!draft.dmMediaUrl.trim()) {
+                          onChangeDmVideoUrl('')
+                        }
+                      }}
+                      disabled={!draft.dmEnabled}
+                      className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+                        draft.dmMediaKind === 'video'
+                          ? 'bg-zinc-800 text-zinc-100 shadow-sm'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      Video
+                    </button>
                   </div>
 
-                  <label className="grid gap-1">
-                    <div className="text-[11px] text-zinc-400">Choose image</div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={!draft.dmEnabled}
-                      onChange={(e) => onChangeDmImage(e.target.files?.[0] ?? null)}
-                      className="block w-full text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border file:border-zinc-700 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-100"
-                    />
-                    {draft.dmMediaPath ? (
-                      <div className="inline-flex items-center gap-2 text-[11px] text-emerald-200">
-                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5">
-                          <CheckIcon className="h-3 w-3" />
-                          Image ready
-                        </span>
-                        Instagram will try the image first, then fall back to text if needed.
+                  {draft.dmMediaKind === 'video' ? (
+                    <label className="grid gap-1">
+                      <div className="text-[11px] text-zinc-400">Video URL (MP4 link)</div>
+                      <input
+                        type="url"
+                        className="h-10 rounded-xl border border-zinc-800 bg-zinc-950 px-3 text-sm text-zinc-50 placeholder:text-zinc-600 focus:border-zinc-600 focus:outline-none"
+                        value={draft.dmMediaUrl}
+                        onChange={(e) => onChangeDmVideoUrl(e.target.value)}
+                        placeholder="https://example.com/video.mp4"
+                        disabled={!draft.dmEnabled}
+                      />
+                      <div className="text-[11px] text-zinc-500">
+                        Paste a public URL to an MP4 file. The video is sent as an attachment, not re-uploaded.
                       </div>
-                    ) : (
-                      <div className="text-[11px] text-zinc-600">No image selected</div>
-                    )}
-                  </label>
+                      {draft.dmMediaUrl.trim() ? (
+                        <div className="inline-flex items-center gap-2 text-[11px] text-emerald-200">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5">
+                            <CheckIcon className="h-3 w-3" />
+                            Video ready
+                          </span>
+                          Instagram will try the video first, then fall back to text if needed.
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-zinc-600">No video URL set</div>
+                      )}
+                    </label>
+                  ) : (
+                    <>
+                      <div className="text-[11px] text-zinc-500">
+                        We send the image first. If Instagram does not allow an image here, we send only the text instead. Max size: 4 MB.
+                      </div>
 
-
+                      <label className="grid gap-1">
+                        <div className="text-[11px] text-zinc-400">Choose image</div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={!draft.dmEnabled}
+                          onChange={(e) => onChangeDmImage(e.target.files?.[0] ?? null)}
+                          className="block w-full text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border file:border-zinc-700 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-100"
+                        />
+                        {draft.dmMediaPath ? (
+                          <div className="inline-flex items-center gap-2 text-[11px] text-emerald-200">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5">
+                              <CheckIcon className="h-3 w-3" />
+                              Image ready
+                            </span>
+                            Instagram will try the image first, then fall back to text if needed.
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-zinc-600">No image selected</div>
+                        )}
+                      </label>
+                    </>
+                  )}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {dmTemplates.map((_, index) => {

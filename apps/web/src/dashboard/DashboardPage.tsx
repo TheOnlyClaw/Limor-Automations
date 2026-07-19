@@ -1126,6 +1126,22 @@ export function DashboardPage({
             }))
           }
         }}
+        onChangeDmVideoUrl={(dmMediaUrl: string) => {
+          if (!configPostId) return
+          setListenerDraftsByPostId((m) => ({
+            ...m,
+            [configPostId]: m[configPostId]
+              ? {
+                  ...m[configPostId]!,
+                  dmMediaKind: dmMediaUrl.trim() ? 'video' : null,
+                  dmMediaUrl,
+                  dmImageEnabled: dmMediaUrl.trim() ? true : m[configPostId]!.dmImageEnabled,
+                  dirty: true,
+                  error: null,
+                }
+              : m[configPostId],
+          }))
+        }}
         onChangeDmCtaText={(dmCtaText) => {
           if (!configPostId) return
           setListenerDraftsByPostId((m) => ({
